@@ -14,53 +14,53 @@ interface QuizQuestion {
 const quizQuestions: QuizQuestion[] = [
   {
     id: "background",
-    question: "What's your current background?",
+    question: "Let's start with you! What best describes where you're at right now?",
     options: [
-      { value: "student", label: "Student", description: "Currently in university or recently graduated" },
-      { value: "developer", label: "Software Developer", description: "Experience in programming and development" },
-      { value: "analyst", label: "Data/Business Analyst", description: "Working with data and analytics" },
-      { value: "professional", label: "Other Professional", description: "Non-tech professional looking to transition" },
-      { value: "entrepreneur", label: "Entrepreneur", description: "Building or wanting to build AI-driven products" }
+      { value: "student", label: "I'm a student", description: "Currently studying or just finished university" },
+      { value: "developer", label: "I'm already coding", description: "I have programming experience and want to add AI to my toolkit" },
+      { value: "analyst", label: "I work with data", description: "I analyze data or make business decisions based on insights" },
+      { value: "professional", label: "I'm in a different field", description: "I work outside tech but want to transition into AI" },
+      { value: "entrepreneur", label: "I'm building something", description: "I have ideas for AI products or want to start an AI business" }
     ]
   },
   {
     id: "experience",
-    question: "What's your experience with AI/ML?",
+    question: "How familiar are you with AI and machine learning? Be honest - we're here to help! 😊",
     options: [
-      { value: "none", label: "Complete Beginner", description: "No prior AI/ML experience" },
-      { value: "basic", label: "Basic Knowledge", description: "Familiar with concepts but no hands-on experience" },
-      { value: "some", label: "Some Experience", description: "Completed courses or small projects" },
-      { value: "intermediate", label: "Intermediate", description: "Built projects and understand fundamentals" }
+      { value: "none", label: "What's machine learning?", description: "I'm completely new to this whole AI world" },
+      { value: "basic", label: "I've heard the buzz", description: "I know the terms but haven't tried building anything yet" },
+      { value: "some", label: "I've dabbled a bit", description: "I've taken a course or tried some tutorials" },
+      { value: "intermediate", label: "I've built some things", description: "I have hands-on experience with AI projects" }
     ]
   },
   {
     id: "programming",
-    question: "How comfortable are you with programming?",
+    question: "Now, let's talk coding. Where do you stand with programming?",
     options: [
-      { value: "none", label: "No Programming Experience" },
-      { value: "basic", label: "Basic (HTML/CSS, simple scripts)" },
-      { value: "intermediate", label: "Intermediate (Python, JavaScript, etc.)" },
-      { value: "advanced", label: "Advanced (Multiple languages, frameworks)" }
+      { value: "none", label: "Code? What code?", description: "I've never written a line of code in my life" },
+      { value: "basic", label: "I can make websites look pretty", description: "I know HTML/CSS and maybe some basic scripting" },
+      { value: "intermediate", label: "I'm pretty comfortable", description: "I can build things with Python, JavaScript, or similar languages" },
+      { value: "advanced", label: "I speak fluent code", description: "I'm experienced with multiple programming languages and frameworks" }
     ]
   },
   {
     id: "goals",
-    question: "What's your primary goal?",
+    question: "What's your dream outcome? What would make this journey totally worth it?",
     options: [
-      { value: "job", label: "Get an AI Job", description: "Land a role at a company" },
-      { value: "skills", label: "Build AI Skills", description: "Enhance current role with AI capabilities" },
-      { value: "startup", label: "Start AI Business", description: "Launch AI-powered product or service" },
-      { value: "research", label: "AI Research", description: "Contribute to AI research and development" }
+      { value: "job", label: "Land my dream AI job", description: "Get hired at a company doing exciting AI work" },
+      { value: "skills", label: "Level up my current role", description: "Add AI superpowers to what I already do" },
+      { value: "startup", label: "Build the next big thing", description: "Create an AI startup or product that changes the world" },
+      { value: "research", label: "Push the boundaries", description: "Contribute to cutting-edge AI research and innovation" }
     ]
   },
   {
     id: "timeline",
-    question: "How much time can you dedicate weekly?",
+    question: "Last question! How much time can you realistically dedicate to this each week?",
     options: [
-      { value: "1-5", label: "1-5 hours/week", description: "Learning alongside full-time commitments" },
-      { value: "6-15", label: "6-15 hours/week", description: "Serious learning with some flexibility" },
-      { value: "16-30", label: "16-30 hours/week", description: "Intensive learning or career transition" },
-      { value: "30+", label: "30+ hours/week", description: "Full-time commitment to learning" }
+      { value: "1-5", label: "Just the weekends", description: "1-5 hours - I'm pretty busy but committed" },
+      { value: "6-15", label: "Evenings + weekends", description: "6-15 hours - I can make this a serious hobby" },
+      { value: "16-30", label: "This is my priority", description: "16-30 hours - I'm ready to make significant progress" },
+      { value: "30+", label: "All in!", description: "30+ hours - I'm treating this like a full-time commitment" }
     ]
   }
 ];
@@ -95,67 +95,80 @@ export const QuizSection = ({ onComplete }: QuizSectionProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-6">
-      <Card className="w-full max-w-2xl">
-        <CardHeader className="text-center">
-          <div className="mb-4">
-            <div className="text-sm text-muted-foreground mb-2">
-              Question {currentQuestion + 1} of {quizQuestions.length}
-            </div>
-            <Progress value={progress} className="h-2" />
+    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
+      <div className="w-full max-w-3xl">
+        {/* Progress indicator */}
+        <div className="mb-8 text-center">
+          <div className="text-sm text-muted-foreground mb-3">
+            {currentQuestion + 1} of {quizQuestions.length} questions
           </div>
-          <CardTitle className="text-2xl md:text-3xl">
-            {currentQuestionData.question}
-          </CardTitle>
-        </CardHeader>
-        
-        <CardContent className="space-y-6">
+          <Progress value={progress} className="h-1 bg-muted/50" />
+        </div>
+
+        {/* Question bubble - chat style */}
+        <div className="animate-fade-in mb-8">
+          <div className="bg-card border rounded-3xl rounded-bl-md p-6 shadow-lg max-w-2xl mx-auto relative">
+            <div className="absolute -bottom-2 -left-2 w-6 h-6 bg-card border-l border-b rotate-45 rounded-bl-sm"></div>
+            <h2 className="text-xl md:text-2xl font-medium leading-relaxed text-foreground">
+              {currentQuestionData.question}
+            </h2>
+          </div>
+        </div>
+
+        {/* Answer options - response style */}
+        <div className="space-y-3 animate-fade-in">
           <RadioGroup
             value={answers[currentQuestionData.id] || ""}
             onValueChange={handleAnswer}
             className="space-y-3"
           >
-            {currentQuestionData.options.map((option) => (
+            {currentQuestionData.options.map((option, index) => (
               <div
                 key={option.value}
-                className="flex items-start space-x-3 p-4 rounded-lg border-2 border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer group"
-                onClick={() => handleAnswer(option.value)}
+                className="group animate-fade-in"
+                style={{ animationDelay: `${index * 100}ms` }}
               >
-                <RadioGroupItem 
-                  value={option.value} 
-                  id={option.value}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <Label 
-                    htmlFor={option.value}
-                    className="text-base font-medium cursor-pointer group-hover:text-primary transition-colors"
-                  >
-                    {option.label}
-                  </Label>
-                  {option.description && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {option.description}
-                    </p>
-                  )}
+                <div
+                  className="flex items-start space-x-4 p-5 rounded-2xl border-2 border-muted hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 cursor-pointer group-hover:shadow-md group-hover:scale-[1.02] bg-card/50 backdrop-blur-sm"
+                  onClick={() => handleAnswer(option.value)}
+                >
+                  <RadioGroupItem 
+                    value={option.value} 
+                    id={option.value}
+                    className="mt-1 transition-colors duration-200"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <Label 
+                      htmlFor={option.value}
+                      className="text-base font-medium cursor-pointer group-hover:text-primary transition-colors duration-200 block mb-1"
+                    >
+                      {option.label}
+                    </Label>
+                    {option.description && (
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {option.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </RadioGroup>
-          
-          {currentQuestion > 0 && (
-            <div className="flex justify-start">
-              <Button 
-                variant="outline" 
-                onClick={handlePrevious}
-                className="mt-4"
-              >
-                Previous
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+        
+        {/* Navigation */}
+        {currentQuestion > 0 && (
+          <div className="flex justify-center mt-8 animate-fade-in">
+            <Button 
+              variant="ghost" 
+              onClick={handlePrevious}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              ← Go back
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
