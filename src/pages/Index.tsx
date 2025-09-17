@@ -211,9 +211,10 @@ const Index = () => {
     setAppState("quiz");
   };
 
-  const handleQuizComplete = (answers: Record<string, string>) => {
-    const generatedRoadmap = generateRoadmap(answers);
-    setRoadmapData(generatedRoadmap);
+  const handleQuizComplete = (data: any) => {
+    // If we have a generated roadmap from the AI, use it; otherwise use the mock generator
+    const roadmapData = data.roadmap || generateRoadmap({});
+    setRoadmapData(roadmapData);
     setAppState("roadmap");
   };
 

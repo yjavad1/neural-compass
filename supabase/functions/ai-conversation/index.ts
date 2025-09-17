@@ -23,36 +23,40 @@ const SYSTEM_PROMPTS: ConversationPhase = {
 
 Your goal in this phase is to:
 - Learn about their current experience level and background
-- Understand their specific interests in AI (ML, NLP, computer vision, etc.)
+- Understand their specific interests in AI (ML, NLP, computer vision, robotics, etc.)
 - Discover their career goals and motivations
 - Assess their technical background and learning preferences
 - Find out how much time they can dedicate to learning
+- Understand their current situation (student, working professional, career changer)
 
-Ask ONE thoughtful follow-up question at a time. Be conversational, encouraging, and avoid sounding like a rigid questionnaire. Show genuine interest in their responses.
+Ask ONE thoughtful follow-up question at a time. Be conversational, encouraging, and reference their previous answers to show you're listening. Avoid sounding like a rigid questionnaire.
 
-Keep responses concise (2-3 sentences max) and always end with a specific question.`,
+Keep responses concise (2-3 sentences max) and always end with a specific, contextual question that builds on what they've shared.`,
 
   clarification: `You are continuing the conversation to clarify and deepen understanding of the person's AI career interests.
 
-Based on the conversation so far, ask targeted follow-up questions to:
-- Clarify any ambiguous or unclear responses
-- Dig deeper into their specific AI interests
-- Understand their learning style and preferences better
-- Clarify their timeline and commitment level
-- Explore potential challenges or concerns they might have
+Based on the conversation history, you should:
+- Reference specific details they've mentioned previously
+- Ask targeted follow-up questions to clarify ambiguous responses
+- Dig deeper into their specific AI interests and career goals
+- Understand their learning style, timeline, and constraints better
+- Explore potential challenges, concerns, or obstacles they foresee
+- Clarify their ideal work environment and career outcomes
 
-Be empathetic and supportive. Ask ONE specific question at a time.`,
+Be empathetic, supportive, and show you remember what they've shared. Ask ONE specific question at a time that demonstrates contextual understanding.`,
 
-  roadmap: `You are creating a personalized AI learning roadmap based on all the information gathered in the conversation.
+  roadmap: `You are creating a comprehensive, personalized AI learning roadmap based on all the information gathered in the conversation.
 
-Generate a comprehensive, actionable roadmap that includes:
-- A clear learning path tailored to their background and goals
-- Specific courses, resources, and tools
-- Realistic timeline based on their available time
-- Practical projects they can work on
-- Next immediate steps they should take
+Generate a detailed, actionable roadmap that includes:
+- A clear, step-by-step learning path tailored to their background and goals
+- Specific online courses, resources, and tools they should use
+- Realistic timeline based on their available time and current skill level
+- Practical projects they can work on to build their portfolio
+- Key skills they need to develop in order of priority
+- Industry insights and career progression pathways
+- Immediate next steps they should take this week
 
-Make it encouraging and achievable. Format it clearly but keep the tone conversational.`
+Make it encouraging, achievable, and highly specific to their situation. Reference their background, interests, and constraints mentioned in the conversation.`
 };
 
 serve(async (req) => {
@@ -118,13 +122,28 @@ serve(async (req) => {
 
       conversationHistory.push({ role: 'user', content: message });
 
-      // Determine next phase based on conversation length and content
+      // Intelligent phase detection based on content completeness
       let currentPhase = session?.phase || 'discovery';
-      const messageCount = conversationHistory.filter(m => m.role === 'user').length;
+      const userMessages = conversationHistory.filter(m => m.role === 'user');
+      const messageCount = userMessages.length;
       
-      if (currentPhase === 'discovery' && messageCount >= 4) {
-        currentPhase = 'clarification';
-      } else if (currentPhase === 'clarification' && messageCount >= 7) {
+      // Enhanced phase transition logic
+      if (currentPhase === 'discovery' && messageCount >= 3) {
+        const backgroundCovered = userMessages.some(m => 
+          m.content.toLowerCase().includes('experience') || 
+          m.content.toLowerCase().includes('background') ||
+          m.content.toLowerCase().includes('work')
+        );
+        const interestsCovered = userMessages.some(m => 
+          m.content.toLowerCase().includes('ai') || 
+          m.content.toLowerCase().includes('machine learning') ||
+          m.content.toLowerCase().includes('data')
+        );
+        
+        if (backgroundCovered && interestsCovered) {
+          currentPhase = 'clarification';
+        }
+      } else if (currentPhase === 'clarification' && messageCount >= 6) {
         currentPhase = 'roadmap';
       }
 
@@ -136,7 +155,15 @@ serve(async (req) => {
           .eq('id', sessionId);
       }
 
-      // Call OpenAI API
+      // Enhanced context-aware system prompt
+      const enhancedSystemPrompt = `${SYSTEM_PROMPTS[currentPhase as keyof ConversationPhase]}
+
+CONVERSATION CONTEXT:
+${conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n')}
+
+Remember to reference their previous responses and build on the conversation naturally.`;
+
+      // Call OpenAI API with GPT-5 mini
       const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
       if (!openAIApiKey) {
         throw new Error('OpenAI API key not configured');
@@ -149,13 +176,12 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4.1-2025-04-14',
+          model: 'gpt-5-mini-2025-08-07',
           messages: [
-            { role: 'system', content: SYSTEM_PROMPTS[currentPhase as keyof ConversationPhase] },
-            ...conversationHistory
+            { role: 'system', content: enhancedSystemPrompt },
+            ...conversationHistory.slice(-8) // Include more context for better understanding
           ],
-          max_completion_tokens: 500,
-          temperature: 0.7,
+          max_completion_tokens: 600,
         }),
       });
 
@@ -205,21 +231,21 @@ async function extractAndSaveProfile(conversationHistory: any[], sessionId: stri
   try {
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     
-    const extractionPrompt = `Based on this conversation, extract the following user profile information and return it as a JSON object:
+    const extractionPrompt = `Based on this comprehensive conversation, extract the following user profile information and return it as a JSON object:
 
 {
   "name": "extracted name if mentioned",
   "experience_level": "beginner/intermediate/advanced",
   "role_current": "current job title/role",
-  "ai_interests": ["array", "of", "ai", "interests"],
-  "learning_goals": ["array", "of", "learning", "goals"],
-  "preferred_learning_style": "hands-on/theoretical/mixed",
+  "ai_interests": ["array", "of", "specific", "ai", "interests"],
+  "learning_goals": ["array", "of", "specific", "learning", "goals"],
+  "preferred_learning_style": "hands-on/theoretical/mixed/project-based",
   "available_time_per_week": number_of_hours,
-  "career_goals": "description of career goals",
-  "technical_background": "description of technical background"
+  "career_goals": "detailed description of career goals",
+  "technical_background": "comprehensive description of technical background and skills"
 }
 
-Only include fields where you have clear information. Use null for missing data.`;
+Be thorough and extract as much relevant information as possible. Use null for missing data.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -228,13 +254,12 @@ Only include fields where you have clear information. Use null for missing data.
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
+        model: 'gpt-5-mini-2025-08-07',
         messages: [
           { role: 'system', content: extractionPrompt },
-          { role: 'user', content: `Conversation history: ${JSON.stringify(conversationHistory)}` }
+          { role: 'user', content: `Full conversation history: ${JSON.stringify(conversationHistory)}` }
         ],
-        max_completion_tokens: 400,
-        temperature: 0.1,
+        max_completion_tokens: 500,
       }),
     });
 

@@ -48,3 +48,9 @@ security_update_password_require_reauthentication = true
 
 [functions.ai-conversation]
 verify_jwt = false
+
+[functions.ai-suggestions]
+verify_jwt = false
+
+[functions.ai-roadmap-generator]
+verify_jwt = false

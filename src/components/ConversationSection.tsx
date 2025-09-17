@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Send, Bot, User, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Lightbulb } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -26,6 +26,9 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
   const [isTyping, setIsTyping] = useState(false);
   const [phase, setPhase] = useState<'discovery' | 'clarification' | 'roadmap'>('discovery');
   const [isComplete, setIsComplete] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -67,18 +70,53 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     }
   };
 
-  const sendMessage = async () => {
-    if (!inputValue.trim() || !sessionId || isLoading) return;
+  const loadSuggestions = async (aiMessage: string) => {
+    if (!sessionId || isComplete) return;
+    
+    setIsLoadingSuggestions(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-suggestions', {
+        body: {
+          sessionId,
+          aiQuestion: aiMessage,
+          conversationHistory: messages
+        }
+      });
+
+      if (error) throw error;
+      
+      setSuggestions(data.suggestions || []);
+      setShowSuggestions(true);
+    } catch (error) {
+      console.error('Error loading suggestions:', error);
+      // Fallback suggestions
+      setSuggestions([
+        "I'd like to share more about my background...",
+        "Let me think about that...",
+        "Can you give me some examples?",
+        "I'm not sure, could you clarify?"
+      ]);
+      setShowSuggestions(true);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  const sendMessage = async (messageText?: string) => {
+    const textToSend = messageText || inputValue.trim();
+    if (!textToSend || !sessionId || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: inputValue.trim(),
+      content: textToSend,
       timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
+    setShowSuggestions(false);
+    setSuggestions([]);
     setIsLoading(true);
     setIsTyping(true);
 
@@ -94,7 +132,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
       if (error) throw error;
 
       // Simulate typing delay
-      setTimeout(() => {
+      setTimeout(async () => {
         setIsTyping(false);
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -108,9 +146,44 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
         
         if (data.isComplete) {
           setIsComplete(true);
-          setTimeout(() => {
-            onComplete({ phase: data.phase, sessionId });
-          }, 1000);
+          // Generate advanced roadmap using the new function
+          try {
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+
+            if (profile) {
+              const { data: roadmapData } = await supabase.functions.invoke('ai-roadmap-generator', {
+                body: {
+                  sessionId,
+                  profileData: profile
+                }
+              });
+              
+              setTimeout(() => {
+                onComplete({ 
+                  phase: data.phase, 
+                  sessionId, 
+                  roadmap: roadmapData?.roadmap 
+                });
+              }, 1000);
+            } else {
+              setTimeout(() => {
+                onComplete({ phase: data.phase, sessionId });
+              }, 1000);
+            }
+          } catch (roadmapError) {
+            console.error('Error generating roadmap:', roadmapError);
+            setTimeout(() => {
+              onComplete({ phase: data.phase, sessionId });
+            }, 1000);
+          }
+        } else {
+          // Load suggestions for the next response
+          await loadSuggestions(data.message);
         }
       }, 1000 + Math.random() * 1000);
 
@@ -125,6 +198,11 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setInputValue(suggestion);
+    setShowSuggestions(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -250,6 +328,29 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
             </div>
           </ScrollArea>
           
+          {/* Suggestions */}
+          {showSuggestions && suggestions.length > 0 && !isComplete && (
+            <div className="border-t bg-muted/30 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Lightbulb className="w-4 h-4" />
+                <span>Suggested responses:</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {suggestions.map((suggestion, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    className="text-left h-auto p-3 justify-start hover:bg-primary/5 border-dashed"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    disabled={isLoading}
+                  >
+                    <span className="text-sm text-foreground/80">{suggestion}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Input Area */}
           {!isComplete && (
             <div className="border-t p-4">
@@ -258,12 +359,12 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Type your message..."
+                  placeholder="Type your message or use a suggestion above..."
                   disabled={isLoading}
                   className="flex-1"
                 />
                 <Button
-                  onClick={sendMessage}
+                  onClick={() => sendMessage()}
                   disabled={isLoading || !inputValue.trim()}
                   size="icon"
                 >
