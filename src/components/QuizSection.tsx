@@ -6,6 +6,8 @@ interface ChatMessage {
   type: 'ai' | 'user';
   content: string;
   timestamp: number;
+  // The question index this message belongs to (used for syncing and back navigation)
+  questionIndex?: number;
 }
 
 interface QuizQuestion {
@@ -95,79 +97,119 @@ export const QuizSection = ({ onComplete }: QuizSectionProps) => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, showOptions]);
 
-  // Show AI question with typing effect
-  useEffect(() => {
-    if (currentQuestion === 0 && chatHistory.length === 0) {
-      // First question - show immediately
-      showAIMessage();
-    }
-  }, []);
+// Show AI question whenever currentQuestion changes and it's not already shown
+useEffect(() => {
+  const hasAiForThis = chatHistory.some(
+    (m) => m.type === 'ai' && m.questionIndex === currentQuestion
+  );
+  if (!hasAiForThis) {
+    showAIMessageFor(currentQuestion);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [currentQuestion]);
 
-  const showAIMessage = () => {
-    setIsTyping(true);
-    setShowOptions(false);
-    
-    // Simulate AI typing
-    setTimeout(() => {
-      setChatHistory(prev => [...prev, {
+const showAIMessageFor = (qIndex: number) => {
+  const q = quizQuestions[qIndex];
+  setIsTyping(true);
+  setShowOptions(false);
+
+  console.debug('[Quiz] Showing AI message for question', qIndex, q.id);
+
+  // Simulate AI typing
+  setTimeout(() => {
+    setChatHistory(prev => [
+      ...prev,
+      {
         type: 'ai',
-        content: currentQuestionData.question,
-        timestamp: Date.now()
-      }]);
-      setIsTyping(false);
-      
-      // Show options after a brief pause
-      setTimeout(() => {
-        setShowOptions(true);
-      }, 500);
-    }, 1000 + Math.random() * 1000); // Random typing delay
-  };
+        content: q.question,
+        timestamp: Date.now(),
+        questionIndex: qIndex,
+      },
+    ]);
+    setIsTyping(false);
 
-  const handleAnswer = (value: string) => {
-    const selectedOption = currentQuestionData.options.find(opt => opt.value === value);
-    if (!selectedOption) return;
+    // Show options after a brief pause
+    setTimeout(() => {
+      setShowOptions(true);
+    }, 500);
+  }, 1000 + Math.random() * 1000); // Random typing delay
+};
 
-    // Add user response to chat
-    setChatHistory(prev => [...prev, {
+const handleAnswer = (value: string) => {
+  const selectedOption = currentQuestionData.options.find(opt => opt.value === value);
+  if (!selectedOption) return;
+
+  // Hide options while transitioning
+  setShowOptions(false);
+
+  // Add user response to chat
+  setChatHistory(prev => [
+    ...prev,
+    {
       type: 'user',
       content: selectedOption.label,
-      timestamp: Date.now()
-    }]);
+      timestamp: Date.now(),
+      questionIndex: currentQuestion,
+    },
+  ]);
 
-    const newAnswers = { ...answers, [currentQuestionData.id]: value };
-    setAnswers(newAnswers);
-    
-    if (isLastQuestion) {
-      // Add final AI message
-      setTimeout(() => {
-        setChatHistory(prev => [...prev, {
+  const newAnswers = { ...answers, [currentQuestionData.id]: value };
+  setAnswers(newAnswers);
+  console.debug('[Quiz] Answered', { questionIndex: currentQuestion, questionId: currentQuestionData.id, value });
+  
+  if (isLastQuestion) {
+    // Add final AI message
+    setTimeout(() => {
+      setChatHistory(prev => [
+        ...prev,
+        {
           type: 'ai',
           content: "Perfect! I've got everything I need. Let me create your personalized AI roadmap...",
-          timestamp: Date.now()
-        }]);
-        
-        setTimeout(() => {
-          onComplete(newAnswers);
-        }, 2000);
-      }, 1000);
-    } else {
-      // Move to next question
+          timestamp: Date.now(),
+          questionIndex: currentQuestion,
+        },
+      ]);
+      
       setTimeout(() => {
-        setCurrentQuestion(prev => prev + 1);
-        showAIMessage();
-      }, 1500);
-    }
-  };
+        onComplete(newAnswers);
+      }, 2000);
+    }, 1000);
+  } else {
+    // Move to next question
+    setTimeout(() => {
+      setCurrentQuestion(prev => prev + 1);
+    }, 1500);
+  }
+};
 
-  const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      // Remove last AI question and user response from chat
-      setChatHistory(prev => prev.slice(0, -2));
-      setCurrentQuestion(currentQuestion - 1);
-      setShowOptions(true);
-      setIsTyping(false);
-    }
-  };
+const handlePrevious = () => {
+  if (isTyping) return;
+  if (currentQuestion > 0) {
+    const newIndex = currentQuestion - 1;
+
+    // Keep all messages before the previous question,
+    // and for the previous question keep only the AI prompt (remove the user's answer)
+    setChatHistory(prev =>
+      prev.filter(m => {
+        const qi = m.questionIndex ?? -1;
+        return qi < newIndex || (qi === newIndex && m.type === 'ai');
+      })
+    );
+
+    // Remove the stored answer for the previous question so the user can change it
+    setAnswers(prev => {
+      const copy = { ...prev };
+      const qId = quizQuestions[newIndex].id;
+      delete copy[qId];
+      return copy;
+    });
+
+    setCurrentQuestion(newIndex);
+    setIsTyping(false);
+    setShowOptions(true);
+    console.debug('[Quiz] Went back to question', newIndex);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
