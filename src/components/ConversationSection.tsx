@@ -1,0 +1,291 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Send, Bot, User, Sparkles } from 'lucide-react';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+interface ConversationSectionProps {
+  onComplete: (data: any) => void;
+}
+
+const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete }) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [phase, setPhase] = useState<'discovery' | 'clarification' | 'roadmap'>('discovery');
+  const [isComplete, setIsComplete] = useState(false);
+  const { toast } = useToast();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping]);
+
+  const startConversation = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-conversation', {
+        body: { action: 'start' }
+      });
+
+      if (error) throw error;
+
+      setSessionId(data.sessionId);
+      setMessages([{
+        id: '1',
+        role: 'assistant',
+        content: data.message,
+        timestamp: new Date()
+      }]);
+      setPhase(data.phase);
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start conversation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!inputValue.trim() || !sessionId || isLoading) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: inputValue.trim(),
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue('');
+    setIsLoading(true);
+    setIsTyping(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-conversation', {
+        body: {
+          action: 'send',
+          message: userMessage.content,
+          sessionId
+        }
+      });
+
+      if (error) throw error;
+
+      // Simulate typing delay
+      setTimeout(() => {
+        setIsTyping(false);
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.message,
+          timestamp: new Date()
+        };
+
+        setMessages(prev => [...prev, aiMessage]);
+        setPhase(data.phase);
+        
+        if (data.isComplete) {
+          setIsComplete(true);
+          setTimeout(() => {
+            onComplete({ phase: data.phase, sessionId });
+          }, 1000);
+        }
+      }, 1000 + Math.random() * 1000);
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setIsTyping(false);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const getPhaseLabel = () => {
+    switch (phase) {
+      case 'discovery': return 'Getting to know you';
+      case 'clarification': return 'Understanding your goals';
+      case 'roadmap': return 'Creating your roadmap';
+      default: return 'Conversation';
+    }
+  };
+
+  const getPhaseProgress = () => {
+    switch (phase) {
+      case 'discovery': return 33;
+      case 'clarification': return 66;
+      case 'roadmap': return 100;
+      default: return 0;
+    }
+  };
+
+  if (!sessionId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center p-6">
+        <div className="max-w-2xl mx-auto text-center space-y-8">
+          <div className="space-y-4">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 mb-6">
+              <Sparkles className="w-10 h-10 text-primary" />
+            </div>
+            <h1 className="text-4xl font-bold text-foreground">
+              Let's Find Your AI Path
+            </h1>
+            <p className="text-xl text-muted-foreground max-w-lg mx-auto">
+              I'm your AI career advisor. Let's have a conversation about your background, interests, and goals to create a personalized roadmap into AI.
+            </p>
+          </div>
+          
+          <Button
+            onClick={startConversation}
+            disabled={isLoading}
+            size="lg"
+            className="px-8 py-4 text-lg"
+          >
+            {isLoading ? 'Starting conversation...' : 'Start Our Conversation'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-foreground">AI Career Conversation</h2>
+            <div className="text-sm text-muted-foreground">
+              {getPhaseLabel()}
+            </div>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="w-full bg-muted rounded-full h-2">
+            <div 
+              className="bg-primary h-2 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${getPhaseProgress()}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Chat Container */}
+        <Card className="h-[600px] flex flex-col">
+          <ScrollArea className="flex-1 p-6" ref={scrollAreaRef}>
+            <div className="space-y-6">
+              {messages.map((message) => (
+                <div key={message.id} className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {message.role === 'assistant' && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-primary" />
+                    </div>
+                  )}
+                  
+                  <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    message.role === 'user' 
+                      ? 'bg-primary text-primary-foreground ml-12' 
+                      : 'bg-muted text-foreground'
+                  }`}>
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  </div>
+                  
+                  {message.role === 'user' && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {/* Typing Indicator */}
+              {isTyping && (
+                <div className="flex gap-4 justify-start">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="bg-muted text-foreground rounded-2xl px-4 py-3">
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+          
+          {/* Input Area */}
+          {!isComplete && (
+            <div className="border-t p-4">
+              <div className="flex gap-2">
+                <Input
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type your message..."
+                  disabled={isLoading}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={sendMessage}
+                  disabled={isLoading || !inputValue.trim()}
+                  size="icon"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Completion Message */}
+          {isComplete && (
+            <div className="border-t p-4 bg-muted/50">
+              <div className="text-center space-y-2">
+                <p className="text-sm font-medium text-foreground">🎉 Conversation Complete!</p>
+                <p className="text-xs text-muted-foreground">Your personalized AI roadmap is being generated...</p>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default ConversationSection;

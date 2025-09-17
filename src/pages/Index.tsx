@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { HeroSection } from "@/components/HeroSection";
-import { QuizSection } from "@/components/QuizSection";
+import ConversationSection from "@/components/ConversationSection";
 import { InteractiveRoadmap } from "@/components/InteractiveRoadmap";
 
 type AppState = "hero" | "quiz" | "roadmap";
@@ -223,7 +223,7 @@ const Index = () => {
   };
 
   if (appState === "quiz") {
-    return <QuizSection onComplete={handleQuizComplete} />;
+    return <ConversationSection onComplete={handleQuizComplete} />;
   }
 
   if (appState === "roadmap" && roadmapData) {
