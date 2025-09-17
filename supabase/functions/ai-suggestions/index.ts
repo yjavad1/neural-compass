@@ -215,10 +215,10 @@ Return ONLY a JSON array of strings, like: ["suggestion 1", "suggestion 2", "sug
 
     // Add timeout for API call
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const openaiPromise = fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openAIApiKey}`,
@@ -234,19 +234,22 @@ Return ONLY a JSON array of strings, like: ["suggestion 1", "suggestion 2", "sug
         signal: controller.signal
       });
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('OpenAI request timeout')), 10000)
-      );
-
-      const response = await Promise.race([openaiPromise, timeoutPromise]);
-      const data = await response.json();
-
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`OpenAI API error: ${errorData.error?.message || `HTTP ${response.status}`}`);
       }
 
-      const content = data.choices[0].message.content;
+      const data = await response.json();
+
+      const content = data.choices?.[0]?.message?.content || '';
       console.log('Raw OpenAI response:', content);
+
+      if (!content || content.trim().length === 0) {
+        console.warn('Empty OpenAI response, using fallbacks');
+        throw new Error('Empty OpenAI response');
+      }
 
       // Parse and validate JSON response
       let suggestions: string[];
@@ -306,6 +309,7 @@ Return ONLY a JSON array of strings, like: ["suggestion 1", "suggestion 2", "sug
       });
 
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Error generating suggestions:', error);
       
       // Return contextual fallbacks on any error

@@ -104,7 +104,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     try {
       // Add timeout for suggestions API call
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Suggestions timeout')), 8000)
+        setTimeout(() => reject(new Error('Suggestions timeout')), 25000)
       );
 
       const suggestionsPromise = supabase.functions.invoke('ai-suggestions', {
@@ -160,7 +160,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     try {
       // Add timeout for API call
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timed out')), 20000)
+        setTimeout(() => reject(new Error('Request timed out')), 30000)
       );
 
       const apiPromise = supabase.functions.invoke('ai-conversation', {
