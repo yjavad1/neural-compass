@@ -87,6 +87,38 @@ export type Database = {
           },
         ]
       }
+      conversation_suggestions: {
+        Row: {
+          created_at: string
+          id: string
+          message_context: string
+          session_id: string
+          suggestions: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_context: string
+          session_id: string
+          suggestions: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_context?: string
+          session_id?: string
+          suggestions?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_suggestions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           ai_interests: string[] | null
