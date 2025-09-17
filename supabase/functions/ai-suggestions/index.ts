@@ -45,32 +45,83 @@ function getPhaseFromMessages(conversationHistory: any[]): 'discovery' | 'clarif
   return 'roadmap';
 }
 
-// Helper function to create fallback suggestions based on context
-function createContextualFallbacks(userLevel: string, phase: string, aiQuestion: string): string[] {
-  const beginnerSuggestions = [
-    "I'm completely new to AI and would like to start with the basics",
-    "Could you explain that in simpler terms?", 
-    "What would you recommend for someone just starting out?",
-    "I'm not familiar with those terms, can you help me understand?"
-  ];
+// Generate contextual fallback suggestions based on user level and phase with personalization
+function createContextualFallbacks(userLevel: string, phase: string, aiQuestion: string, personalInfo: any = {}): string[] {
+  const nameTouch = personalInfo.name ? ` ${personalInfo.name}` : '';
+  
+  if (userLevel === 'beginner') {
+    if (phase === 'discovery') {
+      return [
+        "I'm completely new to AI and would like to start with the basics",
+        `I have some experience with technology but AI is new to me${nameTouch ? ' - could you help guide me?' : ''}`,
+        "Can you explain what AI actually means in simple terms?",
+        "I'm interested but honestly not sure where to even begin"
+      ];
+    } else if (phase === 'clarification') {
+      return [
+        "Could you give me some practical examples of how that works?",
+        "What would you recommend for someone just starting out like me?",
+        "I'd like to learn more about that - where should I focus first?",
+        "How does that actually apply to real work situations?"
+      ];
+    } else {
+      return [
+        "What are the very first steps I should take?",
+        "Realistically, how long would it take to learn these basics?",
+        "What resources would be best for a complete beginner?",
+        "Are there any prerequisites I should know about beforehand?"
+      ];
+    }
+  }
 
-  const intermediateSuggestions = [
-    "I have some technical background but want to learn more about AI specifically",
-    "Can you give me some concrete examples?",
-    "What are the practical steps I should take?",
-    "How does this relate to real-world applications?"
-  ];
+  if (userLevel === 'intermediate') {
+    if (phase === 'discovery') {
+      return [
+        "I have some technical background but want to learn more about AI specifically",
+        "Can you help me understand how AI relates to my current skills?",
+        "What are the practical applications I should be aware of?",
+        "How can I bridge my existing knowledge to AI concepts?"
+      ];
+    } else if (phase === 'clarification') {
+      return [
+        "Can you give me some concrete examples of career paths?",
+        "What specific skills should I focus on developing?",
+        "How long does it typically take to transition into AI?",
+        "What are the most in-demand AI roles right now?"
+      ];
+    } else {
+      return [
+        "What would be the most efficient learning path for me?",
+        "Which programming languages should I prioritize?",
+        "What kind of projects should I build for my portfolio?",
+        "How can I make myself competitive in the AI job market?"
+      ];
+    }
+  }
 
-  const advancedSuggestions = [
-    "I'm familiar with the technical concepts, tell me about career paths",
-    "What specific skills should I focus on developing?",
-    "How can I transition my current experience into AI?",
-    "What are the industry trends I should be aware of?"
-  ];
-
-  if (userLevel === 'beginner') return beginnerSuggestions;
-  if (userLevel === 'advanced') return advancedSuggestions;
-  return intermediateSuggestions;
+  // Advanced user fallbacks
+  if (phase === 'discovery') {
+    return [
+      "I'm familiar with the technical concepts, tell me about specialized career paths",
+      "What are the cutting-edge areas in AI I should consider?",
+      "How can I leverage my current expertise in an AI career?",
+      "What are the leadership opportunities in AI?"
+    ];
+  } else if (phase === 'clarification') {
+    return [
+      "What specific AI frameworks and tools should I master?",
+      "How can I transition from my current role to AI leadership?",
+      "What are the research vs industry trade-offs I should consider?",
+      "Which AI specializations have the most growth potential?"
+    ];
+  } else {
+    return [
+      "What advanced courses or certifications would add the most value?",
+      "How can I build a portfolio that demonstrates AI expertise?",
+      "What are the best strategies for networking in the AI community?",
+      "How do I position myself for senior AI roles?"
+    ];
+  }
 }
 
 serve(async (req) => {
@@ -81,40 +132,80 @@ serve(async (req) => {
   try {
     const { sessionId, aiQuestion, conversationHistory } = await req.json();
 
-    if (!sessionId || !aiQuestion) {
-      console.error('Missing parameters:', { sessionId: !!sessionId, aiQuestion: !!aiQuestion });
-      return new Response(JSON.stringify({ 
-        error: 'Missing required parameters',
-        suggestions: createContextualFallbacks('beginner', 'discovery', aiQuestion)
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (!sessionId || !conversationHistory) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required parameters' }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Detect user level and phase for contextual suggestions
-    const userLevel = detectUserLevel(conversationHistory || []);
-    const phase = getPhaseFromMessages(conversationHistory || []);
-    
-    console.log('Generating suggestions for:', { userLevel, phase, sessionId });
+    // Handle empty aiQuestion by deriving from conversation
+    let contextQuestion = aiQuestion;
+    if (!aiQuestion || aiQuestion.trim().length === 0) {
+      console.log('aiQuestion is empty, deriving from conversation history');
+      const lastAssistantMessage = conversationHistory
+        .filter(m => m.role === 'assistant')
+        .pop();
+      contextQuestion = lastAssistantMessage?.content || 'general conversation';
+    }
 
-    // Check for cached suggestions first
-    const { data: cachedSuggestions } = await supabase
+    const userLevel = detectUserLevel(conversationHistory);
+    const phase = getPhaseFromMessages(conversationHistory);
+
+    console.log(`Generating suggestions for ${userLevel} user in ${phase} phase, context: ${contextQuestion}`);
+
+    // Get recent suggestions to avoid repetition
+    const { data: recentSuggestions } = await supabase
       .from('conversation_suggestions')
       .select('suggestions')
       .eq('session_id', sessionId)
-      .eq('message_context', aiQuestion)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(3);
 
-    if (cachedSuggestions) {
-      return new Response(JSON.stringify({ 
-        suggestions: cachedSuggestions.suggestions 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const usedSuggestions = recentSuggestions
+      ?.flatMap(r => r.suggestions || [])
+      .filter(s => s && typeof s === 'string') || [];
+
+    console.log(`Found ${usedSuggestions.length} recent suggestions to avoid repeating`);
+
+    // Get session data for personalization
+    const { data: sessionData } = await supabase
+      .from('conversation_sessions')
+      .select('session_data')
+      .eq('id', sessionId)
+      .single();
+
+    const personalInfo = sessionData?.session_data || {};
+
+    // Create a comprehensive prompt for generating varied suggestions
+    const userName = personalInfo.name || '';
+    const personalTouch = userName ? ` (address as ${userName} occasionally but not always)` : '';
+    
+    const prompt = `You are generating response suggestions for a user in an AI career conversation.
+
+Context:
+- User Level: ${userLevel}
+- Conversation Phase: ${phase}
+- AI Question: "${contextQuestion}"
+- User Personal Info: ${JSON.stringify(personalInfo)}${personalTouch}
+- Recent conversation: ${conversationHistory.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n')}
+
+AVOID REPEATING these previously used suggestions: ${JSON.stringify(usedSuggestions)}
+
+Generate exactly 4 diverse, fresh, contextually relevant response suggestions that:
+1. Match the user's experience level (${userLevel})
+2. Are appropriate for the ${phase} phase
+3. Help move the conversation forward naturally
+4. Vary in style (some questions, some statements, some exploratory)
+5. Are conversational and authentic
+6. Do NOT repeat any of the avoided suggestions above
+7. Show variety in length and approach
+
+${userLevel === 'beginner' ? 'Use simple, non-technical language. Focus on general interests and comfort level. Avoid technical AI roles/terms.' : ''}
+${userLevel === 'intermediate' ? 'Use moderately technical language. Balance between learning and application.' : ''}
+${userLevel === 'advanced' ? 'Use technical language. Focus on specific technologies and advanced applications.' : ''}
+
+Return ONLY a JSON array of strings, like: ["suggestion 1", "suggestion 2", "suggestion 3", "suggestion 4"]`;
 
     // Generate new suggestions using GPT-5 mini
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -122,49 +213,12 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    // Enhanced prompt based on user level and context
-    const levelGuidance = {
-      beginner: "The user is a complete beginner to AI. Create simple, encouraging suggestions that don't use technical jargon. Focus on basic concepts and learning approaches.",
-      intermediate: "The user has some technical background. Create suggestions that bridge their existing knowledge to AI concepts. Mix basic and slightly technical responses.",
-      advanced: "The user has strong technical knowledge. Create suggestions that dive into specifics, career strategy, and advanced concepts."
-    };
-
-    const phaseGuidance = {
-      discovery: "Focus on understanding their background, interests, and current situation. Ask about experience, motivations, and what draws them to AI.",
-      clarification: "Dig deeper into their specific interests and goals. Clarify ambiguities and understand their constraints and preferences.",
-      roadmap: "Focus on actionable next steps, specific learning paths, and concrete recommendations for their AI journey."
-    };
-
-    const suggestionsPrompt = `You are generating response suggestions for a user in an AI career conversation.
-
-USER CONTEXT:
-- Experience Level: ${userLevel}
-- Conversation Phase: ${phase}
-- ${levelGuidance[userLevel]}
-- ${phaseGuidance[phase]}
-
-REQUIREMENTS:
-- Generate exactly 4 contextual response suggestions
-- Make each suggestion authentic and natural (not robotic)
-- Vary the response styles: detailed/brief, specific/general, question/statement
-- Ensure suggestions help move the conversation forward productively
-- Reference their background when relevant
-- NO technical jargon for beginners
-
-CRITICAL: Return ONLY a valid JSON array of exactly 4 strings, nothing else:
-["suggestion 1", "suggestion 2", "suggestion 3", "suggestion 4"]
-
-RECENT CONVERSATION:
-${conversationHistory ? conversationHistory.slice(-4).map((m: any) => `${m.role}: ${m.content}`).join('\n') : 'Starting conversation'}
-
-AI'S CURRENT MESSAGE: ${aiQuestion}`;
-
     // Add timeout for API call
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const openaiPromise = fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openAIApiKey}`,
@@ -173,73 +227,94 @@ AI'S CURRENT MESSAGE: ${aiQuestion}`;
         body: JSON.stringify({
           model: 'gpt-5-mini-2025-08-07',
           messages: [
-            { role: 'system', content: suggestionsPrompt }
+            { role: 'system', content: prompt }
           ],
           max_completion_tokens: 400,
         }),
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('OpenAI request timeout')), 10000)
+      );
 
+      const response = await Promise.race([openaiPromise, timeoutPromise]);
       const data = await response.json();
-      
+
       if (!response.ok) {
-        console.error('OpenAI API error:', data);
         throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
       }
 
-      const messageContent = data.choices[0].message.content.trim();
-      console.log('Raw OpenAI response:', messageContent);
+      const content = data.choices[0].message.content;
+      console.log('Raw OpenAI response:', content);
 
-      // Robust JSON parsing with validation
-      let suggestions;
+      // Parse and validate JSON response
+      let suggestions: string[];
       try {
-        suggestions = JSON.parse(messageContent);
-        
-        // Validate the suggestions array
-        if (!Array.isArray(suggestions) || suggestions.length !== 4) {
+        let parsedSuggestions = JSON.parse(content);
+        if (!Array.isArray(parsedSuggestions) || parsedSuggestions.length === 0) {
           throw new Error('Invalid suggestions format');
         }
         
-        // Ensure all suggestions are strings
-        suggestions = suggestions.map(s => String(s).trim()).filter(s => s.length > 0);
-        
-        if (suggestions.length < 3) {
-          throw new Error('Insufficient valid suggestions');
+        // Validate that all suggestions are strings
+        if (!parsedSuggestions.every(s => typeof s === 'string' && s.trim().length > 0)) {
+          throw new Error('Invalid suggestion content');
         }
+
+        // Filter out suggestions that match used ones (avoid repetition)
+        const filteredSuggestions = parsedSuggestions.filter(s => 
+          !usedSuggestions.some(used => 
+            s.toLowerCase().includes(used.toLowerCase()) || 
+            used.toLowerCase().includes(s.toLowerCase())
+          )
+        );
+
+        // If we filtered out too many, top up with contextual fallbacks
+        if (filteredSuggestions.length < 3) {
+          const fallbacks = createContextualFallbacks(userLevel, phase, contextQuestion, personalInfo);
+          const neededFallbacks = fallbacks.filter(f => 
+            !usedSuggestions.some(used => 
+              f.toLowerCase().includes(used.toLowerCase()) || 
+              used.toLowerCase().includes(f.toLowerCase())
+            )
+          );
+          suggestions = [...filteredSuggestions, ...neededFallbacks].slice(0, 4);
+        } else {
+          suggestions = filteredSuggestions.slice(0, 4);
+        }
+
+        // Shuffle for variety
+        suggestions = suggestions.sort(() => Math.random() - 0.5);
         
       } catch (parseError) {
-        console.error('JSON parsing failed:', parseError, 'Content:', messageContent);
-        suggestions = createContextualFallbacks(userLevel, phase, aiQuestion);
+        console.error('Failed to parse OpenAI response:', parseError);
+        console.log('Using contextual fallbacks instead');
+        suggestions = createContextualFallbacks(userLevel, phase, contextQuestion, personalInfo);
       }
 
-      // Cache the suggestions
-      try {
-        await supabase
-          .from('conversation_suggestions')
-          .insert({
-            session_id: sessionId,
-            message_context: aiQuestion,
-            suggestions: suggestions
-          });
-      } catch (cacheError) {
-        console.error('Failed to cache suggestions:', cacheError);
-        // Continue anyway - caching failure shouldn't break the response
-      }
+      // Cache the suggestions with context question
+      await supabase
+        .from('conversation_suggestions')
+        .insert({
+          session_id: sessionId,
+          message_context: contextQuestion,
+          suggestions
+        });
 
       return new Response(JSON.stringify({ suggestions }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
 
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
+    } catch (error) {
+      console.error('Error generating suggestions:', error);
       
-      if (fetchError.name === 'AbortError') {
-        console.error('OpenAI request timed out');
-        throw new Error('AI response timed out. Please try again.');
-      }
-      throw fetchError;
+      // Return contextual fallbacks on any error
+      const fallbackSuggestions = createContextualFallbacks(userLevel, phase, contextQuestion, personalInfo);
+      
+      return new Response(
+        JSON.stringify({ suggestions: fallbackSuggestions }), 
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
   } catch (error) {
@@ -249,7 +324,7 @@ AI'S CURRENT MESSAGE: ${aiQuestion}`;
     const { conversationHistory } = await req.json().catch(() => ({}));
     const userLevel = detectUserLevel(conversationHistory || []);
     const phase = getPhaseFromMessages(conversationHistory || []);
-    const fallbackSuggestions = createContextualFallbacks(userLevel, phase, '');
+    const fallbackSuggestions = createContextualFallbacks(userLevel, phase, '', {});
     
     return new Response(JSON.stringify({ 
       error: error.message,

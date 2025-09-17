@@ -176,7 +176,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
       if (error) throw error;
 
       // Simulate typing delay
-      setTimeout(async () => {
+          setTimeout(async () => {
         setIsTyping(false);
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -187,6 +187,9 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
 
         setMessages(prev => [...prev, aiMessage]);
         setPhase(data.phase);
+        
+        // Set loading to false immediately after AI message to allow suggestion clicks
+        setIsLoading(false);
         
         if (data.isComplete) {
           setIsComplete(true);
@@ -226,8 +229,10 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
             }, 1000);
           }
         } else {
-          // Load suggestions for the next response
-          await loadSuggestions(data.message);
+          // Load suggestions in background (don't block further interaction)
+          const aiMessageToUse = data.message && data.message.trim() ? data.message : 
+            (messages.length > 0 ? messages[messages.length - 1]?.content : 'continue conversation');
+          loadSuggestions(aiMessageToUse);
         }
       }, 1000 + Math.random() * 1000);
 
@@ -248,21 +253,22 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      // Only set loading to false if we haven't already done so above
+      if (isLoading) {
+        setIsLoading(false);
+      }
     }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
-    if (isLoading) return; // Prevent clicks while loading
+    // Allow clicks even if suggestions are loading - just not if main conversation is loading
+    if (isLoading) return;
+    
     setInputValue(suggestion);
     setShowSuggestions(false);
     
-    // Auto-send the message after a brief delay for better UX
-    setTimeout(() => {
-      if (!isLoading) { // Double-check we're not already loading
-        sendMessage(suggestion);
-      }
-    }, 100);
+    // Send message immediately - no timeout needed
+    sendMessage(suggestion);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

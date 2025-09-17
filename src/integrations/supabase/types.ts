@@ -125,6 +125,7 @@ export type Database = {
           available_time_per_week: number | null
           career_goals: string | null
           created_at: string | null
+          date_of_birth: string | null
           email: string | null
           experience_level: string | null
           id: string
@@ -141,6 +142,7 @@ export type Database = {
           available_time_per_week?: number | null
           career_goals?: string | null
           created_at?: string | null
+          date_of_birth?: string | null
           email?: string | null
           experience_level?: string | null
           id?: string
@@ -157,6 +159,7 @@ export type Database = {
           available_time_per_week?: number | null
           career_goals?: string | null
           created_at?: string | null
+          date_of_birth?: string | null
           email?: string | null
           experience_level?: string | null
           id?: string
