@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Clock, Star, Download, Share, Play, MapPin, Flag, Target } from "lucide-react";
+import { CheckCircle, Clock, Star, Download, Share, Play, MapPin, Flag, Target, BookOpen, PlayCircle, Code, Users, Wrench, GraduationCap } from "lucide-react";
 import { ResourceCard } from "@/components/ResourceCard";
+import { ResourcePopover } from "@/components/ResourcePopover";
 
 interface Resource {
   title: string;
@@ -38,6 +39,25 @@ interface InteractiveRoadmapProps {
   roadmapData: RoadmapData;
   onRestart: () => void;
 }
+
+const getResourceIcon = (type: Resource['type']) => {
+  const icons = {
+    course: GraduationCap,
+    tutorial: PlayCircle,
+    practice: Code,
+    community: Users,
+    book: BookOpen,
+    tool: Wrench
+  };
+  return icons[type] || BookOpen;
+};
+
+const getResourceTypeCount = (resources: Resource[]) => {
+  return resources.reduce((acc, resource) => {
+    acc[resource.type] = (acc[resource.type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+};
 
 export const InteractiveRoadmap = ({ roadmapData, onRestart }: InteractiveRoadmapProps) => {
   const [completedPhases, setCompletedPhases] = useState(
@@ -191,9 +211,23 @@ export const InteractiveRoadmap = ({ roadmapData, onRestart }: InteractiveRoadma
                             )}
                             {phase.name}
                           </CardTitle>
-                          <Badge variant="outline" className="text-xs">
-                            {phase.duration}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {phase.duration}
+                            </Badge>
+                            {/* Resource count badge */}
+                            <ResourcePopover resources={phase.resources}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs hover:bg-ai-primary/10"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <BookOpen size={12} className="mr-1" />
+                                {phase.resources.length}
+                              </Button>
+                            </ResourcePopover>
+                          </div>
                         </div>
                       </CardHeader>
                       
@@ -218,6 +252,27 @@ export const InteractiveRoadmap = ({ roadmapData, onRestart }: InteractiveRoadma
                               )}
                             </div>
                           </div>
+
+                          {/* Resource Type Indicators */}
+                          {phase.resources.length > 0 && (
+                            <div>
+                              <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                                <BookOpen size={14} className="text-ai-secondary" />
+                                Learning Resources
+                              </h4>
+                              <div className="flex flex-wrap gap-2">
+                                {Object.entries(getResourceTypeCount(phase.resources)).map(([type, count]) => {
+                                  const Icon = getResourceIcon(type as Resource['type']);
+                                  return (
+                                    <div key={type} className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Icon size={12} />
+                                      <span>{count} {type}s</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Action Button */}
                           {status !== 'locked' && (
