@@ -18,43 +18,76 @@ interface ConversationPhase {
   roadmap: string;
 }
 
+// Helper function to detect user experience level from conversation
+function detectUserExperienceLevel(conversationHistory: any[]): 'beginner' | 'intermediate' | 'advanced' {
+  const userMessages = conversationHistory
+    .filter(m => m.role === 'user')
+    .map(m => m.content.toLowerCase())
+    .join(' ');
+
+  const beginnerIndicators = [
+    'no idea', 'not sure', 'beginner', 'new to', 'never', 'just starting',
+    'don\'t know', 'confused', 'basic', 'simple', 'help me understand',
+    'no experience', 'complete beginner', 'start from scratch'
+  ];
+  
+  const advancedIndicators = [
+    'tensorflow', 'pytorch', 'neural network', 'deep learning', 'algorithm',
+    'python', 'statistics', 'data science', 'machine learning', 'api', 'model',
+    'programming', 'software engineer', 'data analyst', 'computer science'
+  ];
+
+  const beginnerScore = beginnerIndicators.filter(indicator => userMessages.includes(indicator)).length;
+  const advancedScore = advancedIndicators.filter(indicator => userMessages.includes(indicator)).length;
+
+  if (beginnerScore > 0 && beginnerScore >= advancedScore) return 'beginner';
+  if (advancedScore > 2) return 'advanced';
+  return 'intermediate';
+}
+
 const SYSTEM_PROMPTS: ConversationPhase = {
   discovery: `You are an AI career advisor specializing in helping people enter the AI field. You're having a friendly, natural conversation to understand their background, interests, and goals.
 
+CRITICAL: Pay close attention to the user's experience level indicated in their responses:
+- If they say "no idea", "beginner", "new to AI", etc. → Ask BASIC questions about their general interests, background, and what they've heard about AI
+- If they show technical knowledge → You can ask more specific questions about AI areas
+- NEVER ask technical questions to someone who has indicated they're a complete beginner
+
 Your goal in this phase is to:
 - Learn about their current experience level and background
-- Understand their specific interests in AI (ML, NLP, computer vision, robotics, etc.)
-- Discover their career goals and motivations
-- Assess their technical background and learning preferences
-- Find out how much time they can dedicate to learning
-- Understand their current situation (student, working professional, career changer)
+- Understand their general interests and what attracts them to AI
+- Discover their career goals and motivations  
+- Assess their technical background (if any)
+- Find out their current situation (student, working professional, career changer)
 
-Ask ONE thoughtful follow-up question at a time. Be conversational, encouraging, and reference their previous answers to show you're listening. Avoid sounding like a rigid questionnaire.
+IMPORTANT: Match your language and questions to their stated experience level. For beginners, focus on broad interests, motivations, and general background rather than specific AI domains.
 
-Keep responses concise (2-3 sentences max) and always end with a specific, contextual question that builds on what they've shared.`,
+Ask ONE thoughtful follow-up question at a time. Be conversational, encouraging, and reference their previous answers. Keep responses concise (2-3 sentences max).`,
 
   clarification: `You are continuing the conversation to clarify and deepen understanding of the person's AI career interests.
 
-Based on the conversation history, you should:
+Based on the conversation history and their experience level, you should:
 - Reference specific details they've mentioned previously
-- Ask targeted follow-up questions to clarify ambiguous responses
-- Dig deeper into their specific AI interests and career goals
+- Ask targeted follow-up questions appropriate to their knowledge level
+- For beginners: Focus on learning preferences, time availability, and comfort with technology
+- For intermediate/advanced: Dig deeper into specific AI interests and technical goals
 - Understand their learning style, timeline, and constraints better
 - Explore potential challenges, concerns, or obstacles they foresee
-- Clarify their ideal work environment and career outcomes
 
-Be empathetic, supportive, and show you remember what they've shared. Ask ONE specific question at a time that demonstrates contextual understanding.`,
+Be empathetic, supportive, and show you remember what they've shared. Adjust your language complexity to match their experience level.`,
 
   roadmap: `You are creating a comprehensive, personalized AI learning roadmap based on all the information gathered in the conversation.
 
 Generate a detailed, actionable roadmap that includes:
 - A clear, step-by-step learning path tailored to their background and goals
-- Specific online courses, resources, and tools they should use
+- Specific online courses, resources, and tools appropriate for their level
 - Realistic timeline based on their available time and current skill level
 - Practical projects they can work on to build their portfolio
 - Key skills they need to develop in order of priority
 - Industry insights and career progression pathways
 - Immediate next steps they should take this week
+
+CRITICAL: Ensure the roadmap matches their experience level - don't overwhelm beginners with advanced concepts, and don't oversimplify for experienced users.
 
 Make it encouraging, achievable, and highly specific to their situation. Reference their background, interests, and constraints mentioned in the conversation.`
 };
@@ -127,24 +160,34 @@ serve(async (req) => {
       const userMessages = conversationHistory.filter(m => m.role === 'user');
       const messageCount = userMessages.length;
       
-      // Enhanced phase transition logic
-      if (currentPhase === 'discovery' && messageCount >= 3) {
-        const backgroundCovered = userMessages.some(m => 
-          m.content.toLowerCase().includes('experience') || 
-          m.content.toLowerCase().includes('background') ||
-          m.content.toLowerCase().includes('work')
-        );
-        const interestsCovered = userMessages.some(m => 
-          m.content.toLowerCase().includes('ai') || 
-          m.content.toLowerCase().includes('machine learning') ||
-          m.content.toLowerCase().includes('data')
-        );
+      // Detect user experience level for context-aware responses
+      const userLevel = detectUserExperienceLevel(conversationHistory);
+      
+      // Enhanced phase transition logic based on content and user level
+      if (currentPhase === 'discovery' && messageCount >= 2) {
+        const hasBasicInfo = userMessages.some(m => {
+          const content = m.content.toLowerCase();
+          return content.includes('work') || content.includes('study') || 
+                 content.includes('background') || content.includes('experience') ||
+                 content.includes('currently') || content.includes('job');
+        });
         
-        if (backgroundCovered && interestsCovered) {
+        const hasInterestInfo = userMessages.some(m => {
+          const content = m.content.toLowerCase();
+          return content.includes('interested') || content.includes('want') ||
+                 content.includes('goal') || content.includes('ai') ||
+                 content.includes('learn') || content.includes('career');
+        });
+        
+        if (hasBasicInfo && hasInterestInfo) {
           currentPhase = 'clarification';
         }
-      } else if (currentPhase === 'clarification' && messageCount >= 6) {
-        currentPhase = 'roadmap';
+      } else if (currentPhase === 'clarification' && messageCount >= 4) {
+        // For beginners, we might need more clarification before roadmap
+        const minMessages = userLevel === 'beginner' ? 5 : 4;
+        if (messageCount >= minMessages) {
+          currentPhase = 'roadmap';
+        }
       }
 
       // Update session phase if changed
@@ -155,13 +198,19 @@ serve(async (req) => {
           .eq('id', sessionId);
       }
 
-      // Enhanced context-aware system prompt
+      // Enhanced context-aware system prompt with user level
       const enhancedSystemPrompt = `${SYSTEM_PROMPTS[currentPhase as keyof ConversationPhase]}
 
-CONVERSATION CONTEXT:
+USER EXPERIENCE LEVEL DETECTED: ${userLevel}
+- Adjust your language and questions accordingly
+- For beginners: Use simple terms, focus on broad concepts, be extra encouraging
+- For intermediate: Bridge existing knowledge to AI concepts
+- For advanced: Discuss specific technical paths and career strategy
+
+RECENT CONVERSATION CONTEXT:
 ${conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n')}
 
-Remember to reference their previous responses and build on the conversation naturally.`;
+Remember to reference their previous responses and build on the conversation naturally. Always consider their stated experience level when framing your response.`;
 
       // Call OpenAI API with GPT-5 mini
       const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -169,48 +218,67 @@ Remember to reference their previous responses and build on the conversation nat
         throw new Error('OpenAI API key not configured');
       }
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-5-mini-2025-08-07',
-          messages: [
-            { role: 'system', content: enhancedSystemPrompt },
-            ...conversationHistory.slice(-8) // Include more context for better understanding
-          ],
-          max_completion_tokens: 600,
-        }),
-      });
+      // Add timeout for API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-      const data = await response.json();
-      
-      if (!response.ok) {
-        console.error('OpenAI API error:', data);
-        throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openAIApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-5-mini-2025-08-07',
+            messages: [
+              { role: 'system', content: enhancedSystemPrompt },
+              ...conversationHistory.slice(-8) // Include more context for better understanding
+            ],
+            max_completion_tokens: 600,
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error('OpenAI API error:', data);
+          throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+        }
+
+        const aiResponse = data.choices[0].message.content;
+
+        // Save AI response
+        await supabase
+          .from('conversation_messages')
+          .insert({ session_id: sessionId, role: 'assistant', content: aiResponse });
+
+        // Extract user profile data if we have enough information
+        if (currentPhase === 'roadmap') {
+          await extractAndSaveProfile(conversationHistory, sessionId);
+        }
+
+        return new Response(JSON.stringify({ 
+          message: aiResponse,
+          phase: currentPhase,
+          isComplete: currentPhase === 'roadmap'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError.name === 'AbortError') {
+          console.error('OpenAI request timed out for session:', sessionId);
+          throw new Error('The AI is taking too long to respond. Please try again.');
+        }
+        throw fetchError;
       }
 
-      const aiResponse = data.choices[0].message.content;
-
-      // Save AI response
-      await supabase
-        .from('conversation_messages')
-        .insert({ session_id: sessionId, role: 'assistant', content: aiResponse });
-
-      // Extract user profile data if we have enough information
-      if (currentPhase === 'roadmap') {
-        await extractAndSaveProfile(conversationHistory, sessionId);
-      }
-
-      return new Response(JSON.stringify({ 
-        message: aiResponse,
-        phase: currentPhase,
-        isComplete: currentPhase === 'roadmap'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     return new Response(JSON.stringify({ error: 'Invalid request' }), {

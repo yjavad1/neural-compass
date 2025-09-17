@@ -70,32 +70,69 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     }
   };
 
+  const getContextualFallbacks = () => {
+    const messageCount = messages.filter(m => m.role === 'user').length;
+    
+    if (messageCount <= 1) {
+      return [
+        "I'm completely new to AI and would like to start with the basics",
+        "I have some technical background but want to learn about AI",
+        "Can you explain what AI career options exist?",
+        "I'm interested but not sure where to begin"
+      ];
+    } else if (messageCount <= 3) {
+      return [
+        "Could you give me some examples?",
+        "What would you recommend for someone like me?",
+        "I'd like to learn more about that",
+        "How does that work in practice?"
+      ];
+    } else {
+      return [
+        "What are the next steps I should take?",
+        "How long would that typically take?",
+        "What resources would you recommend?",
+        "Are there any prerequisites I should know about?"
+      ];
+    }
+  };
+
   const loadSuggestions = async (aiMessage: string) => {
     if (!sessionId || isComplete) return;
     
     setIsLoadingSuggestions(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ai-suggestions', {
+      // Add timeout for suggestions API call
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Suggestions timeout')), 8000)
+      );
+
+      const suggestionsPromise = supabase.functions.invoke('ai-suggestions', {
         body: {
           sessionId,
           aiQuestion: aiMessage,
-          conversationHistory: messages
+          conversationHistory: messages.map(m => ({ role: m.role, content: m.content }))
         }
       });
 
-      if (error) throw error;
-      
-      setSuggestions(data.suggestions || []);
-      setShowSuggestions(true);
+      const { data, error } = await Promise.race([suggestionsPromise, timeoutPromise]) as any;
+
+      if (error) {
+        console.error('Suggestions API error:', error);
+        throw error;
+      }
+
+      if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+        setSuggestions(data.suggestions);
+        setShowSuggestions(true);
+      } else {
+        console.warn('Invalid suggestions format:', data);
+        setSuggestions(getContextualFallbacks());
+        setShowSuggestions(true);
+      }
     } catch (error) {
       console.error('Error loading suggestions:', error);
-      // Fallback suggestions
-      setSuggestions([
-        "I'd like to share more about my background...",
-        "Let me think about that...",
-        "Can you give me some examples?",
-        "I'm not sure, could you clarify?"
-      ]);
+      setSuggestions(getContextualFallbacks());
       setShowSuggestions(true);
     } finally {
       setIsLoadingSuggestions(false);
@@ -121,13 +158,20 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     setIsTyping(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-conversation', {
+      // Add timeout for API call
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out')), 20000)
+      );
+
+      const apiPromise = supabase.functions.invoke('ai-conversation', {
         body: {
           action: 'send',
           message: userMessage.content,
           sessionId
         }
       });
+
+      const { data, error } = await Promise.race([apiPromise, timeoutPromise]) as any;
 
       if (error) throw error;
 
@@ -190,9 +234,17 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     } catch (error) {
       console.error('Error sending message:', error);
       setIsTyping(false);
+      
+      let errorText = 'Failed to send message. Please try again.';
+      if (error.message === 'Request timed out') {
+        errorText = 'The response is taking too long. Please try again with a shorter message.';
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        errorText = 'Network error. Please check your connection and try again.';
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to send message. Please try again.",
+        description: errorText,
         variant: "destructive",
       });
     } finally {
@@ -201,8 +253,16 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
   };
 
   const handleSuggestionClick = (suggestion: string) => {
+    if (isLoading) return; // Prevent clicks while loading
     setInputValue(suggestion);
     setShowSuggestions(false);
+    
+    // Auto-send the message after a brief delay for better UX
+    setTimeout(() => {
+      if (!isLoading) { // Double-check we're not already loading
+        sendMessage(suggestion);
+      }
+    }, 100);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
