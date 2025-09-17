@@ -45,83 +45,32 @@ function getPhaseFromMessages(conversationHistory: any[]): 'discovery' | 'clarif
   return 'roadmap';
 }
 
-// Generate contextual fallback suggestions based on user level and phase with personalization
+// Generate solid, reliable fallback suggestions that work without AI
 function createContextualFallbacks(userLevel: string, phase: string, aiQuestion: string, personalInfo: any = {}): string[] {
-  const nameTouch = personalInfo.name ? ` ${personalInfo.name}` : '';
-  
-  if (userLevel === 'beginner') {
-    if (phase === 'discovery') {
-      return [
-        "I'm completely new to AI and would like to start with the basics",
-        `I have some experience with technology but AI is new to me${nameTouch ? ' - could you help guide me?' : ''}`,
-        "Can you explain what AI actually means in simple terms?",
-        "I'm interested but honestly not sure where to even begin"
-      ];
-    } else if (phase === 'clarification') {
-      return [
-        "Could you give me some practical examples of how that works?",
-        "What would you recommend for someone just starting out like me?",
-        "I'd like to learn more about that - where should I focus first?",
-        "How does that actually apply to real work situations?"
-      ];
-    } else {
-      return [
-        "What are the very first steps I should take?",
-        "Realistically, how long would it take to learn these basics?",
-        "What resources would be best for a complete beginner?",
-        "Are there any prerequisites I should know about beforehand?"
-      ];
-    }
-  }
-
-  if (userLevel === 'intermediate') {
-    if (phase === 'discovery') {
-      return [
-        "I have some technical background but want to learn more about AI specifically",
-        "Can you help me understand how AI relates to my current skills?",
-        "What are the practical applications I should be aware of?",
-        "How can I bridge my existing knowledge to AI concepts?"
-      ];
-    } else if (phase === 'clarification') {
-      return [
-        "Can you give me some concrete examples of career paths?",
-        "What specific skills should I focus on developing?",
-        "How long does it typically take to transition into AI?",
-        "What are the most in-demand AI roles right now?"
-      ];
-    } else {
-      return [
-        "What would be the most efficient learning path for me?",
-        "Which programming languages should I prioritize?",
-        "What kind of projects should I build for my portfolio?",
-        "How can I make myself competitive in the AI job market?"
-      ];
-    }
-  }
-
-  // Advanced user fallbacks
+  // Simple, encouraging responses that work in any context
   if (phase === 'discovery') {
     return [
-      "I'm familiar with the technical concepts, tell me about specialized career paths",
-      "What are the cutting-edge areas in AI I should consider?",
-      "How can I leverage my current expertise in an AI career?",
-      "What are the leadership opportunities in AI?"
+      "I'm new to AI - can you help me understand the basics?",
+      "What does my background mean for AI opportunities?", 
+      "I'm curious about AI but not sure where to start",
+      "Can you tell me more about what's possible in AI?"
     ];
   } else if (phase === 'clarification') {
     return [
-      "What specific AI frameworks and tools should I master?",
-      "How can I transition from my current role to AI leadership?",
-      "What are the research vs industry trade-offs I should consider?",
-      "Which AI specializations have the most growth potential?"
+      "Could you give me some examples of that?",
+      "What would you recommend for someone like me?", 
+      "How does that work in practice?",
+      "What should I focus on first?"
     ];
   } else {
     return [
-      "What advanced courses or certifications would add the most value?",
-      "How can I build a portfolio that demonstrates AI expertise?",
-      "What are the best strategies for networking in the AI community?",
-      "How do I position myself for senior AI roles?"
+      "What are my next steps?",
+      "How long would that take?",
+      "What resources do you recommend?",
+      "How do I get started with that?"
     ];
   }
+
 }
 
 serve(async (req) => {
@@ -213,9 +162,9 @@ Return ONLY a JSON array of strings, like: ["suggestion 1", "suggestion 2", "sug
       throw new Error('OpenAI API key not configured');
     }
 
-    // Add timeout for API call
+    // Add shorter timeout for API call - fail fast to fallbacks
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {

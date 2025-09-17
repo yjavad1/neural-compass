@@ -46,50 +46,46 @@ function detectUserExperienceLevel(conversationHistory: any[]): 'beginner' | 'in
 }
 
 const SYSTEM_PROMPTS: ConversationPhase = {
-  discovery: `You are an AI career advisor specializing in helping people enter the AI field. You're having a friendly, natural conversation to understand their background, interests, and goals.
+  discovery: `You are a friendly AI career advisor helping people discover their ideal entry point into AI. This is the DISCOVERY phase - focus on understanding them as a person first.
 
-CRITICAL: Pay close attention to the user's experience level indicated in their responses:
-- If they say "no idea", "beginner", "new to AI", etc. → Ask BASIC questions about their general interests, background, and what they've heard about AI
-- If they show technical knowledge → You can ask more specific questions about AI areas
-- NEVER ask technical questions to someone who has indicated they're a complete beginner
+CRITICAL RULES:
+- Ask ONE simple question at a time
+- If they're a beginner (most people are), use everyday language only  
+- Start with their name, then naturally progress through background and interests
+- Be warm, encouraging, and patient
+- NEVER overwhelm with multiple questions or technical terms
+- Build rapport before diving into specifics
 
-Your goal in this phase is to:
-- Learn about their current experience level and background
-- Understand their general interests and what attracts them to AI
-- Discover their career goals and motivations  
-- Assess their technical background (if any)
-- Find out their current situation (student, working professional, career changer)
+Your goal is to understand:
+1. Their name and current situation (student, working, etc.)
+2. What sparked their interest in AI 
+3. Their general comfort with technology
+4. Their career aspirations (in simple terms)
 
-IMPORTANT: Match your language and questions to their stated experience level. For beginners, focus on broad interests, motivations, and general background rather than specific AI domains.
+Keep responses SHORT (1-2 sentences max) and focused on one topic. Reference what they just shared to show you're listening.`,
 
-Ask ONE thoughtful follow-up question at a time. Be conversational, encouraging, and reference their previous answers. Keep responses concise (2-3 sentences max).`,
+  clarification: `You're now in the CLARIFICATION phase - diving deeper into their specific interests and goals.
 
-  clarification: `You are continuing the conversation to clarify and deepen understanding of the person's AI career interests.
+Based on what you learned in discovery:
+- Reference specific details they shared (name, background, interests)
+- Ask follow-up questions that help them think deeper about their goals
+- For beginners: Focus on learning preferences and what excites them most
+- Help them identify what aspects of AI align with their interests
+- Keep questions simple and one at a time
+- Be encouraging and help them see possibilities
 
-Based on the conversation history and their experience level, you should:
-- Reference specific details they've mentioned previously
-- Ask targeted follow-up questions appropriate to their knowledge level
-- For beginners: Focus on learning preferences, time availability, and comfort with technology
-- For intermediate/advanced: Dig deeper into specific AI interests and technical goals
-- Understand their learning style, timeline, and constraints better
-- Explore potential challenges, concerns, or obstacles they foresee
+Stay conversational and supportive. Your goal is to help them clarify their direction before creating a roadmap.`,
 
-Be empathetic, supportive, and show you remember what they've shared. Adjust your language complexity to match their experience level.`,
+  roadmap: `You're creating a personalized AI learning roadmap! This is the final phase.
 
-  roadmap: `You are creating a comprehensive, personalized AI learning roadmap based on all the information gathered in the conversation.
+Create a clear, encouraging roadmap that includes:
+- A simple step-by-step path that matches their experience level  
+- 3-4 immediate next steps they can take this week
+- Realistic timeline based on their situation
+- Specific resources appropriate for their level (no overwhelming lists)
+- One simple project they could start with
 
-Generate a detailed, actionable roadmap that includes:
-- A clear, step-by-step learning path tailored to their background and goals
-- Specific online courses, resources, and tools appropriate for their level
-- Realistic timeline based on their available time and current skill level
-- Practical projects they can work on to build their portfolio
-- Key skills they need to develop in order of priority
-- Industry insights and career progression pathways
-- Immediate next steps they should take this week
-
-CRITICAL: Ensure the roadmap matches their experience level - don't overwhelm beginners with advanced concepts, and don't oversimplify for experienced users.
-
-Make it encouraging, achievable, and highly specific to their situation. Reference their background, interests, and constraints mentioned in the conversation.`
+Keep it encouraging and achievable. Reference their name and what they shared about their background and interests. Make them feel excited about their AI journey!`
 };
 
 const USER_LEVEL_GUIDANCE = {
@@ -119,17 +115,12 @@ USER HAS TECHNICAL EXPERTISE:
 - Explore leadership and specialized roles`
 };
 
-// Initial system message for new conversations - now asks for personalization
-const initialMessage = `Hello! I'm your AI career advisor, and I'm excited to help you explore opportunities in the AI field.
+// Simple, welcoming initial message
+const initialMessage = `Hi there! 👋 I'm your AI career advisor, and I'm here to help you discover your perfect entry point into the world of artificial intelligence.
 
-To get started and personalize our conversation, I'd love to learn about you:
+Let's start simple - **what's your first name?**
 
-1. **What's your first name?** (so I can address you personally)
-2. **What's your current background or role?**
-3. **What sparked your interest in AI?**
-4. **Optional:** Your birth month/day (helps me tailor timeline suggestions)
-
-Take your time - there are no wrong answers here! Let's start with your name and background. 🚀`;
+I'll guide you step by step to understand your background and interests, then create a personalized roadmap just for you. No technical knowledge required!`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -282,9 +273,20 @@ serve(async (req) => {
           .from('conversation_messages')
           .insert({ session_id: sessionId, role: 'assistant', content: aiResponse });
 
-        // Extract user profile data if we have enough information
+        // Extract user profile data and check if actually ready for roadmap
         if (updatedPhase === 'roadmap') {
-          await extractAndSaveProfile(conversationHistory, sessionId);
+          // Double-check they're actually ready by looking for readiness signals
+          const lastMessage = message.toLowerCase();
+          const readinessSignals = ['ready', 'roadmap', 'plan', 'what should i do', 'next steps', 'get started'];
+          const explicitlyReady = readinessSignals.some(signal => lastMessage.includes(signal));
+          
+          if (explicitlyReady || conversationHistory.filter(m => m.role === 'user').length >= 10) {
+            await extractAndSaveProfile(conversationHistory, sessionId);
+          } else {
+            // Not quite ready yet, stay in clarification with a gentle check
+            aiResponse += "\n\nAre you ready for me to create your personalized AI roadmap, or would you like to discuss anything else first?";
+            updatedPhase = 'clarification';
+          }
         }
 
         return new Response(JSON.stringify({ 
@@ -363,28 +365,35 @@ RESPONSE GUIDELINES:
 - For beginners: Stay non-technical until they indicate readiness`;
 }
 
-// Determine conversation phase based on content and user level
+// Determine conversation phase based on content and user level - more conservative
 function determinePhase(conversationHistory: any[], userLevel: string): 'discovery' | 'clarification' | 'roadmap' {
   const userMessages = conversationHistory.filter(m => m.role === 'user');
   const messageCount = userMessages.length;
   
-  if (messageCount <= 2) return 'discovery';
-  if (messageCount <= (userLevel === 'beginner' ? 5 : 4)) return 'clarification';
+  // Extended discovery phase for better understanding
+  if (messageCount <= 4) return 'discovery';
+  if (messageCount <= (userLevel === 'beginner' ? 8 : 6)) return 'clarification';
   return 'roadmap';
 }
 
-// Update phase based on conversation progress
+// Update phase based on conversation progress - quality over quantity
 function updatePhaseBasedOnProgress(conversationHistory: any[], currentPhase: string, userLevel: string): 'discovery' | 'clarification' | 'roadmap' {
   const userMessages = conversationHistory.filter(m => m.role === 'user');
   const messageCount = userMessages.length;
   
-  if (currentPhase === 'discovery' && messageCount >= 2) {
-    const hasBasicInfo = userMessages.some(m => {
+  // Stay longer in discovery to build better understanding
+  if (currentPhase === 'discovery' && messageCount >= 4) {
+    const hasName = userMessages.some(m => {
+      const content = m.content.toLowerCase();
+      return content.includes('name is') || content.includes('i\'m ') || 
+             content.includes('call me') || content.includes('my name');
+    });
+    
+    const hasBackground = userMessages.some(m => {
       const content = m.content.toLowerCase();
       return content.includes('work') || content.includes('study') || 
-             content.includes('background') || content.includes('experience') ||
-             content.includes('currently') || content.includes('job') ||
-             content.includes('name');
+             content.includes('background') || content.includes('student') ||
+             content.includes('job') || content.includes('role');
     });
     
     const hasInterestInfo = userMessages.some(m => {
@@ -394,13 +403,21 @@ function updatePhaseBasedOnProgress(conversationHistory: any[], currentPhase: st
              content.includes('learn') || content.includes('career');
     });
     
-    if (hasBasicInfo && hasInterestInfo) {
+    // Require substantial understanding before moving to clarification
+    if (hasName && hasBackground && hasInterestInfo && messageCount >= 5) {
       return 'clarification';
     }
   } else if (currentPhase === 'clarification') {
-    const minMessages = userLevel === 'beginner' ? 5 : 4;
+    // Only move to roadmap when we have rich context
+    const minMessages = userLevel === 'beginner' ? 8 : 6;
     if (messageCount >= minMessages) {
-      return 'roadmap';
+      // Check if user explicitly indicates readiness for roadmap
+      const lastFewMessages = userMessages.slice(-3).map(m => m.content.toLowerCase()).join(' ');
+      const roadmapIndicators = ['ready', 'roadmap', 'plan', 'next steps', 'what should i do'];
+      
+      if (roadmapIndicators.some(indicator => lastFewMessages.includes(indicator)) || messageCount >= minMessages + 2) {
+        return 'roadmap';
+      }
     }
   }
   

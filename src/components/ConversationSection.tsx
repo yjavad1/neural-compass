@@ -71,30 +71,13 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
   };
 
   const getContextualFallbacks = () => {
-    const messageCount = messages.filter(m => m.role === 'user').length;
-    
-    if (messageCount <= 1) {
-      return [
-        "I'm completely new to AI and would like to start with the basics",
-        "I have some technical background but want to learn about AI",
-        "Can you explain what AI career options exist?",
-        "I'm interested but not sure where to begin"
-      ];
-    } else if (messageCount <= 3) {
-      return [
-        "Could you give me some examples?",
-        "What would you recommend for someone like me?",
-        "I'd like to learn more about that",
-        "How does that work in practice?"
-      ];
-    } else {
-      return [
-        "What are the next steps I should take?",
-        "How long would that typically take?",
-        "What resources would you recommend?",
-        "Are there any prerequisites I should know about?"
-      ];
-    }
+    // Simple, encouraging suggestions that always work
+    return [
+      "I'm new to AI - can you help me understand the basics?",
+      "What does my background mean for AI opportunities?", 
+      "I'm curious about AI but not sure where to start",
+      "Can you tell me more about what's possible?"
+    ];
   };
 
   const loadSuggestions = async (aiMessage: string) => {
@@ -102,9 +85,9 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     
     setIsLoadingSuggestions(true);
     try {
-      // Add timeout for suggestions API call
+      // Add shorter timeout for suggestions API call - fail fast to fallbacks
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Suggestions timeout')), 25000)
+        setTimeout(() => reject(new Error('Suggestions timeout')), 8000)
       );
 
       const suggestionsPromise = supabase.functions.invoke('ai-suggestions', {
@@ -281,8 +264,8 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
   const getPhaseLabel = () => {
     switch (phase) {
       case 'discovery': return 'Getting to know you';
-      case 'clarification': return 'Understanding your goals';
-      case 'roadmap': return 'Creating your roadmap';
+      case 'clarification': return 'Exploring your interests';
+      case 'roadmap': return 'Creating your personalized roadmap';
       default: return 'Conversation';
     }
   };
@@ -308,7 +291,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
               Let's Find Your AI Path
             </h1>
             <p className="text-xl text-muted-foreground max-w-lg mx-auto">
-              I'm your AI career advisor. Let's have a conversation about your background, interests, and goals to create a personalized roadmap into AI.
+              I'm here to help students, career switchers, and entrepreneurs discover their perfect entry point into AI. Let's chat!
             </p>
           </div>
           
