@@ -3,6 +3,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Clock, Star, Download, Share } from "lucide-react";
+import { ResourceCard } from "@/components/ResourceCard";
+
+interface Resource {
+  title: string;
+  type: 'course' | 'tutorial' | 'practice' | 'community' | 'book' | 'tool';
+  provider: string;
+  duration: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  cost: 'Free' | 'Paid' | 'Freemium';
+  rating: number;
+  url: string;
+  description: string;
+}
 
 interface RoadmapData {
   role: string;
@@ -14,6 +27,7 @@ interface RoadmapData {
     duration: string;
     skills: string[];
     projects: string[];
+    resources: Resource[];
     completed: boolean;
   }[];
   nextSteps: string[];
@@ -123,34 +137,41 @@ export const RoadmapSection = ({ roadmapData, onRestart }: RoadmapSectionProps) 
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid lg:grid-cols-2 gap-6">
                   <div>
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Star size={16} className="text-ai-primary" />
-                      Key Skills
-                    </h4>
-                    <ul className="space-y-2">
-                      {phase.skills.map((skill, skillIndex) => (
-                        <li key={skillIndex} className="text-sm flex items-center gap-2">
-                          <div className="w-2 h-2 bg-ai-primary rounded-full" />
-                          {skill}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mb-6">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <Star size={16} className="text-ai-primary" />
+                        Key Skills
+                      </h4>
+                      <ul className="space-y-2">
+                        {phase.skills.map((skill, skillIndex) => (
+                          <li key={skillIndex} className="text-sm flex items-center gap-2">
+                            <div className="w-2 h-2 bg-ai-primary rounded-full" />
+                            {skill}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <CheckCircle size={16} className="text-ai-secondary" />
+                        Projects & Deliverables
+                      </h4>
+                      <ul className="space-y-2">
+                        {phase.projects.map((project, projectIndex) => (
+                          <li key={projectIndex} className="text-sm flex items-center gap-2">
+                            <div className="w-2 h-2 bg-ai-secondary rounded-full" />
+                            {project}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
+                  
                   <div>
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <CheckCircle size={16} className="text-ai-secondary" />
-                      Projects & Deliverables
-                    </h4>
-                    <ul className="space-y-2">
-                      {phase.projects.map((project, projectIndex) => (
-                        <li key={projectIndex} className="text-sm flex items-center gap-2">
-                          <div className="w-2 h-2 bg-ai-secondary rounded-full" />
-                          {project}
-                        </li>
-                      ))}
-                    </ul>
+                    <ResourceCard resources={phase.resources} />
                   </div>
                 </div>
               </CardContent>
