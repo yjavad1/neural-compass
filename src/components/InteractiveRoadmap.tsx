@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Clock, Star, Download, Share, Play, MapPin, Flag, Target, BookOpen, PlayCircle, Code, Users, Wrench, GraduationCap } from "lucide-react";
+import { CheckCircle, Clock, Star, Download, Share, Play, MapPin, Flag, Target, BookOpen, PlayCircle, Code, Users, Wrench, GraduationCap, ExternalLink } from "lucide-react";
 import { ResourceCard } from "@/components/ResourceCard";
-import { ResourcePopover } from "@/components/ResourcePopover";
+import { FloatingResourcePanel } from "@/components/FloatingResourcePanel";
 
 interface Resource {
   title: string;
@@ -64,6 +64,7 @@ export const InteractiveRoadmap = ({ roadmapData, onRestart }: InteractiveRoadma
     roadmapData.phases.map(phase => phase.completed)
   );
   const [selectedPhase, setSelectedPhase] = useState<number | null>(null);
+  const [hoveredPhase, setHoveredPhase] = useState<number | null>(null);
 
   const completedCount = completedPhases.filter(Boolean).length;
   const progressPercentage = (completedCount / roadmapData.phases.length) * 100;
@@ -81,8 +82,16 @@ export const InteractiveRoadmap = ({ roadmapData, onRestart }: InteractiveRoadma
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 p-6 relative">
+      {/* Floating Resource Panel */}
+      <FloatingResourcePanel
+        resources={hoveredPhase !== null ? roadmapData.phases[hoveredPhase].resources : []}
+        phaseName={hoveredPhase !== null ? roadmapData.phases[hoveredPhase].name : ''}
+        phaseIndex={hoveredPhase !== null ? hoveredPhase : 0}
+        isVisible={hoveredPhase !== null}
+      />
+      
+      <div className="max-w-5xl mx-auto lg:mr-96">
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-ai-primary to-ai-secondary bg-clip-text text-transparent">
@@ -158,7 +167,11 @@ export const InteractiveRoadmap = ({ roadmapData, onRestart }: InteractiveRoadma
               
               return (
                 <div key={index} className={`flex ${positionClass} mb-16`}>
-                  <div className={`relative ${index % 2 === 0 ? 'mr-8' : 'ml-8'}`}>
+                  <div 
+                    className={`relative ${index % 2 === 0 ? 'mr-8' : 'ml-8'}`}
+                    onMouseEnter={() => setHoveredPhase(index)}
+                    onMouseLeave={() => setHoveredPhase(null)}
+                  >
                     {/* Phase Number Circle */}
                     <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-20">
                       <div 
@@ -216,17 +229,14 @@ export const InteractiveRoadmap = ({ roadmapData, onRestart }: InteractiveRoadma
                               {phase.duration}
                             </Badge>
                             {/* Resource count badge */}
-                            <ResourcePopover resources={phase.resources}>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs hover:bg-ai-primary/10"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <BookOpen size={12} className="mr-1" />
-                                {phase.resources.length}
-                              </Button>
-                            </ResourcePopover>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs hover:bg-ai-primary/10 pointer-events-none"
+                            >
+                              <BookOpen size={12} className="mr-1" />
+                              {phase.resources.length}
+                            </Button>
                           </div>
                         </div>
                       </CardHeader>
@@ -253,23 +263,46 @@ export const InteractiveRoadmap = ({ roadmapData, onRestart }: InteractiveRoadma
                             </div>
                           </div>
 
-                          {/* Resource Type Indicators */}
+                          {/* Resource Preview */}
                           {phase.resources.length > 0 && (
                             <div>
                               <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
                                 <BookOpen size={14} className="text-ai-secondary" />
-                                Learning Resources
+                                Top Resources
                               </h4>
-                              <div className="flex flex-wrap gap-2">
-                                {Object.entries(getResourceTypeCount(phase.resources)).map(([type, count]) => {
-                                  const Icon = getResourceIcon(type as Resource['type']);
-                                  return (
-                                    <div key={type} className="flex items-center gap-1 text-xs text-muted-foreground">
-                                      <Icon size={12} />
-                                      <span>{count} {type}s</span>
-                                    </div>
-                                  );
-                                })}
+                              <div className="space-y-2">
+                                {phase.resources
+                                  .filter(r => r.rating >= 4.5)
+                                  .slice(0, 2)
+                                  .map((resource, resourceIndex) => {
+                                    const Icon = getResourceIcon(resource.type);
+                                    return (
+                                      <div 
+                                        key={resourceIndex} 
+                                        className="flex items-center gap-2 p-2 rounded bg-ai-primary/5 border border-ai-primary/10 hover:bg-ai-primary/10 transition-colors cursor-pointer group"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(resource.url, '_blank');
+                                        }}
+                                      >
+                                        <Icon size={14} className="text-ai-primary flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-xs font-medium line-clamp-1">{resource.title}</p>
+                                          <p className="text-xs text-muted-foreground">{resource.provider}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <Star size={10} className="fill-current text-yellow-400" />
+                                          <span className="text-xs">{resource.rating}</span>
+                                          <ExternalLink size={10} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                {phase.resources.length > 2 && (
+                                  <div className="text-xs text-center text-muted-foreground py-1">
+                                    +{phase.resources.length - 2} more resources →
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
