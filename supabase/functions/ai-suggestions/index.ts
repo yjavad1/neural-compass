@@ -12,110 +12,141 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
-// Helper function to detect user experience level
-function detectUserLevel(conversationHistory: any[]): 'beginner' | 'intermediate' | 'advanced' {
-  const userMessages = conversationHistory
-    .filter(m => m.role === 'user')
-    .map(m => m.content.toLowerCase())
-    .join(' ');
-
-  const beginnerIndicators = [
-    'no idea', 'not sure', 'beginner', 'new to', 'never', 'just starting',
-    'don\'t know', 'confused', 'basic', 'simple', 'help me understand'
-  ];
+// Rule-based suggestion generator - deterministic and contextual
+function generateContextualSuggestions(
+  userLevel: 'beginner' | 'intermediate' | 'advanced',
+  phase: 'discovery' | 'clarification' | 'roadmap',
+  aiQuestion: string,
+  personalInfo: any = {}
+): string[] {
+  const lowerQuestion = aiQuestion.toLowerCase();
   
-  const advancedIndicators = [
-    'tensorflow', 'pytorch', 'neural network', 'deep learning', 'algorithm',
-    'python', 'statistics', 'data science', 'machine learning', 'api', 'model'
-  ];
-
-  const beginnerScore = beginnerIndicators.filter(indicator => userMessages.includes(indicator)).length;
-  const advancedScore = advancedIndicators.filter(indicator => userMessages.includes(indicator)).length;
-
-  if (beginnerScore > advancedScore && beginnerScore > 0) return 'beginner';
-  if (advancedScore > 2) return 'advanced';
-  return 'intermediate';
-}
-
-// Helper function to get conversation phase
-function getPhaseFromMessages(conversationHistory: any[]): 'discovery' | 'clarification' | 'roadmap' {
-  const messageCount = conversationHistory.filter(m => m.role === 'user').length;
-  if (messageCount <= 2) return 'discovery';
-  if (messageCount <= 5) return 'clarification';
-  return 'roadmap';
-}
-
-// Generate solid, reliable fallback suggestions that work without AI
-function createContextualFallbacks(userLevel: string, phase: string, aiQuestion: string, personalInfo: any = {}): string[] {
-  // Simple, encouraging responses that work in any context
+  // Discovery phase suggestions
   if (phase === 'discovery') {
+    if (lowerQuestion.includes('name')) {
+      return [
+        "Hi! I'm Alex",
+        "My name is Sarah",
+        "You can call me Mike",
+        "I'm Jessica"
+      ];
+    }
+    
+    if (lowerQuestion.includes('student') || lowerQuestion.includes('working') || lowerQuestion.includes('career')) {
+      return [
+        "I'm currently a student",
+        "I'm working but looking to switch careers",
+        "I'm working and want to add AI skills",
+        "I'm between jobs right now"
+      ];
+    }
+    
+    if (lowerQuestion.includes('interest') || lowerQuestion.includes('curious') || lowerQuestion.includes('sparked')) {
+      return [
+        "I keep hearing about AI everywhere",
+        "My friend got a job using AI",
+        "I saw some cool AI apps and got curious",
+        "I want to future-proof my career"
+      ];
+    }
+    
+    // Generic discovery fallbacks
     return [
-      "I'm new to AI - can you help me understand the basics?",
-      "What does my background mean for AI opportunities?", 
-      "I'm curious about AI but not sure where to start",
-      "Can you tell me more about what's possible in AI?"
-    ];
-  } else if (phase === 'clarification') {
-    return [
-      "Could you give me some examples of that?",
-      "What would you recommend for someone like me?", 
-      "How does that work in practice?",
-      "What should I focus on first?"
-    ];
-  } else {
-    return [
-      "What are my next steps?",
-      "How long would that take?",
-      "What resources do you recommend?",
-      "How do I get started with that?"
+      "Tell me more about that",
+      "That sounds interesting",
+      "I'd like to learn more",
+      "Can you explain further?"
     ];
   }
-
+  
+  // Clarification phase suggestions
+  if (phase === 'clarification') {
+    if (lowerQuestion.includes('creating') || lowerQuestion.includes('analyzing') || lowerQuestion.includes('type')) {
+      return [
+        "I'm more interested in creating things",
+        "Analyzing data sounds fascinating",
+        "Working with images and videos appeals to me",
+        "I'm not sure yet, what are the options?"
+      ];
+    }
+    
+    if (lowerQuestion.includes('app') || lowerQuestion.includes('website') || lowerQuestion.includes('build')) {
+      return [
+        "Building apps sounds exciting",
+        "I'd love to create websites with AI",
+        "Making tools that help people",
+        "I'm more interested in data analysis"
+      ];
+    }
+    
+    if (lowerQuestion.includes('learn') || lowerQuestion.includes('prefer')) {
+      return [
+        "I like hands-on learning",
+        "I prefer reading and tutorials",
+        "Video courses work best for me",
+        "I learn by doing projects"
+      ];
+    }
+    
+    // Generic clarification fallbacks
+    return [
+      "I'd like to explore that option",
+      "That sounds like something I'd enjoy",
+      "I'm interested in learning more",
+      "Can you tell me about other options?"
+    ];
+  }
+  
+  // Roadmap phase suggestions
+  if (phase === 'roadmap') {
+    if (lowerQuestion.includes('roadmap') || lowerQuestion.includes('generate') || lowerQuestion.includes('create')) {
+      return [
+        "Yes, please create my roadmap!",
+        "That would be great, let's do it",
+        "I'm ready for my personalized plan",
+        "Let me think about it for a moment"
+      ];
+    }
+    
+    // Generic roadmap fallbacks
+    return [
+      "Yes, I'm ready!",
+      "Let's create the roadmap",
+      "I'd love to see my plan",
+      "What would the roadmap include?"
+    ];
+  }
+  
+  // Ultimate fallbacks
+  return [
+    "That's interesting",
+    "Tell me more",
+    "I'd like to know more about that",
+    "Can you elaborate?"
+  ];
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { sessionId, aiQuestion, conversationHistory } = await req.json();
-
-    if (!sessionId || !conversationHistory) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }), 
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    
+    if (!sessionId || !aiQuestion) {
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Handle empty aiQuestion by deriving from conversation
-    let contextQuestion = aiQuestion;
-    if (!aiQuestion || aiQuestion.trim().length === 0) {
-      console.log('aiQuestion is empty, deriving from conversation history');
-      const lastAssistantMessage = conversationHistory
-        .filter(m => m.role === 'assistant')
-        .pop();
-      contextQuestion = lastAssistantMessage?.content || 'general conversation';
-    }
-
-    const userLevel = detectUserLevel(conversationHistory);
-    const phase = getPhaseFromMessages(conversationHistory);
-
-    console.log(`Generating suggestions for ${userLevel} user in ${phase} phase, context: ${contextQuestion}`);
-
-    // Get recent suggestions to avoid repetition
-    const { data: recentSuggestions } = await supabase
-      .from('conversation_suggestions')
-      .select('suggestions')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: false })
-      .limit(3);
-
-    const usedSuggestions = recentSuggestions
-      ?.flatMap(r => r.suggestions || [])
-      .filter(s => s && typeof s === 'string') || [];
-
-    console.log(`Found ${usedSuggestions.length} recent suggestions to avoid repeating`);
+    // Detect user level and phase
+    const userLevel = detectUserLevel(conversationHistory || []);
+    const phase = getPhaseFromMessages(conversationHistory || []);
+    
+    console.log(`Generating rule-based suggestions for ${userLevel} user in ${phase} phase, context: ${aiQuestion}`);
 
     // Get session data for personalization
     const { data: sessionData } = await supabase
@@ -126,165 +157,67 @@ serve(async (req) => {
 
     const personalInfo = sessionData?.session_data || {};
 
-    // Create a comprehensive prompt for generating varied suggestions
-    const userName = personalInfo.name || '';
-    const personalTouch = userName ? ` (address as ${userName} occasionally but not always)` : '';
-    
-    const prompt = `You are generating response suggestions for a user in an AI career conversation.
+    // Generate contextual suggestions using rules instead of AI
+    const suggestions = generateContextualSuggestions(userLevel, phase, aiQuestion, personalInfo);
 
-Context:
-- User Level: ${userLevel}
-- Conversation Phase: ${phase}
-- AI Question: "${contextQuestion}"
-- User Personal Info: ${JSON.stringify(personalInfo)}${personalTouch}
-- Recent conversation: ${conversationHistory.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n')}
-
-AVOID REPEATING these previously used suggestions: ${JSON.stringify(usedSuggestions)}
-
-Generate exactly 4 diverse, fresh, contextually relevant response suggestions that:
-1. Match the user's experience level (${userLevel})
-2. Are appropriate for the ${phase} phase
-3. Help move the conversation forward naturally
-4. Vary in style (some questions, some statements, some exploratory)
-5. Are conversational and authentic
-6. Do NOT repeat any of the avoided suggestions above
-7. Show variety in length and approach
-
-${userLevel === 'beginner' ? 'Use simple, non-technical language. Focus on general interests and comfort level. Avoid technical AI roles/terms.' : ''}
-${userLevel === 'intermediate' ? 'Use moderately technical language. Balance between learning and application.' : ''}
-${userLevel === 'advanced' ? 'Use technical language. Focus on specific technologies and advanced applications.' : ''}
-
-Return ONLY a JSON array of strings, like: ["suggestion 1", "suggestion 2", "suggestion 3", "suggestion 4"]`;
-
-    // Generate new suggestions using GPT-5 mini
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
-
-    // Add shorter timeout for API call - fail fast to fallbacks
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
+    // Cache suggestions in database (optional for analytics)
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-5-mini-2025-08-07',
-          messages: [
-            { role: 'system', content: prompt }
-          ],
-          max_completion_tokens: 400,
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`OpenAI API error: ${errorData.error?.message || `HTTP ${response.status}`}`);
-      }
-
-      const data = await response.json();
-
-      const content = data.choices?.[0]?.message?.content || '';
-      console.log('Raw OpenAI response:', content);
-
-      if (!content || content.trim().length === 0) {
-        console.warn('Empty OpenAI response, using fallbacks');
-        throw new Error('Empty OpenAI response');
-      }
-
-      // Parse and validate JSON response
-      let suggestions: string[];
-      try {
-        let parsedSuggestions = JSON.parse(content);
-        if (!Array.isArray(parsedSuggestions) || parsedSuggestions.length === 0) {
-          throw new Error('Invalid suggestions format');
-        }
-        
-        // Validate that all suggestions are strings
-        if (!parsedSuggestions.every(s => typeof s === 'string' && s.trim().length > 0)) {
-          throw new Error('Invalid suggestion content');
-        }
-
-        // Filter out suggestions that match used ones (avoid repetition)
-        const filteredSuggestions = parsedSuggestions.filter(s => 
-          !usedSuggestions.some(used => 
-            s.toLowerCase().includes(used.toLowerCase()) || 
-            used.toLowerCase().includes(s.toLowerCase())
-          )
-        );
-
-        // If we filtered out too many, top up with contextual fallbacks
-        if (filteredSuggestions.length < 3) {
-          const fallbacks = createContextualFallbacks(userLevel, phase, contextQuestion, personalInfo);
-          const neededFallbacks = fallbacks.filter(f => 
-            !usedSuggestions.some(used => 
-              f.toLowerCase().includes(used.toLowerCase()) || 
-              used.toLowerCase().includes(f.toLowerCase())
-            )
-          );
-          suggestions = [...filteredSuggestions, ...neededFallbacks].slice(0, 4);
-        } else {
-          suggestions = filteredSuggestions.slice(0, 4);
-        }
-
-        // Shuffle for variety
-        suggestions = suggestions.sort(() => Math.random() - 0.5);
-        
-      } catch (parseError) {
-        console.error('Failed to parse OpenAI response:', parseError);
-        console.log('Using contextual fallbacks instead');
-        suggestions = createContextualFallbacks(userLevel, phase, contextQuestion, personalInfo);
-      }
-
-      // Cache the suggestions with context question
       await supabase
         .from('conversation_suggestions')
         .insert({
           session_id: sessionId,
-          message_context: contextQuestion,
-          suggestions
+          ai_question: aiQuestion,
+          suggestions: suggestions,
+          user_level: userLevel,
+          conversation_phase: phase
         });
-
-      return new Response(JSON.stringify({ suggestions }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-
     } catch (error) {
-      clearTimeout(timeoutId);
-      console.error('Error generating suggestions:', error);
-      
-      // Return contextual fallbacks on any error
-      const fallbackSuggestions = createContextualFallbacks(userLevel, phase, contextQuestion, personalInfo);
-      
-      return new Response(
-        JSON.stringify({ suggestions: fallbackSuggestions }), 
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.warn('Failed to cache suggestions (non-critical):', error);
     }
 
+    return new Response(JSON.stringify({ suggestions }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
   } catch (error) {
-    console.error('Error in ai-suggestions function:', error);
+    console.error('Error generating suggestions:', error);
     
-    // Provide contextual fallback suggestions based on what we know
-    const { conversationHistory } = await req.json().catch(() => ({}));
-    const userLevel = detectUserLevel(conversationHistory || []);
-    const phase = getPhaseFromMessages(conversationHistory || []);
-    const fallbackSuggestions = createContextualFallbacks(userLevel, phase, '', {});
-    
-    return new Response(JSON.stringify({ 
-      error: error.message,
-      suggestions: fallbackSuggestions
-    }), {
-      status: 500,
+    // Always return working fallback suggestions
+    const fallbackSuggestions = [
+      "That sounds interesting",
+      "I'd like to learn more about that",
+      "Can you tell me more?",
+      "What would you recommend?"
+    ];
+
+    return new Response(JSON.stringify({ suggestions: fallbackSuggestions }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
+
+// Helper functions
+function detectUserLevel(conversationHistory: any[]): 'beginner' | 'intermediate' | 'advanced' {
+  const allText = conversationHistory
+    .filter(msg => msg.role === 'user')
+    .map(msg => msg.content.toLowerCase())
+    .join(' ');
+
+  const advancedTerms = ['programming', 'python', 'javascript', 'machine learning', 'neural network', 'tensorflow', 'pytorch', 'algorithm', 'data science', 'api', 'framework'];
+  const intermediateTerms = ['computer', 'software', 'technology', 'coding', 'technical', 'digital', 'online course'];
+
+  const advancedCount = advancedTerms.filter(term => allText.includes(term)).length;
+  const intermediateCount = intermediateTerms.filter(term => allText.includes(term)).length;
+
+  if (advancedCount >= 2) return 'advanced';
+  if (intermediateCount >= 1 || advancedCount >= 1) return 'intermediate';
+  return 'beginner';
+}
+
+function getPhaseFromMessages(conversationHistory: any[]): 'discovery' | 'clarification' | 'roadmap' {
+  const userMessages = conversationHistory.filter(msg => msg.role === 'user').length;
+  
+  if (userMessages <= 2) return 'discovery';
+  if (userMessages <= 4) return 'clarification';
+  return 'roadmap';
+}

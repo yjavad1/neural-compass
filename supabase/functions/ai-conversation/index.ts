@@ -265,7 +265,7 @@ serve(async (req) => {
         // Guarantee non-empty AI replies with fallback
         if (!aiResponse || aiResponse.trim().length === 0) {
           console.warn('OpenAI returned empty response, using fallback');
-          aiResponse = generateFallbackResponse(userLevel, updatedPhase, personalInfo);
+          aiResponse = generateFallbackResponse(userLevel, nextPhase, personalInfo);
         }
 
         // Save AI response

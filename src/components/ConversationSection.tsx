@@ -85,9 +85,9 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     
     setIsLoadingSuggestions(true);
     try {
-      // Add shorter timeout for suggestions API call - fail fast to fallbacks
+      // Short timeout for suggestions - fail fast to fallbacks  
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Suggestions timeout')), 8000)
+        setTimeout(() => reject(new Error('Suggestions timeout')), 5000)
       );
 
       const suggestionsPromise = supabase.functions.invoke('ai-suggestions', {
@@ -114,7 +114,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
         setShowSuggestions(true);
       }
     } catch (error) {
-      console.error('Error loading suggestions:', error);
+      // Silent timeout - just use fallbacks without error logs
       setSuggestions(getContextualFallbacks());
       setShowSuggestions(true);
     } finally {
