@@ -12,7 +12,7 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
-// Rule-based suggestion generator - deterministic and contextual
+// INTELLIGENT SUGGESTION GENERATOR - Question-Type Detection
 function generateContextualSuggestions(
   userLevel: 'beginner' | 'intermediate' | 'advanced',
   phase: 'discovery' | 'clarification' | 'roadmap',
@@ -21,108 +21,90 @@ function generateContextualSuggestions(
 ): string[] {
   const lowerQuestion = aiQuestion.toLowerCase();
   
-  // Discovery phase suggestions
-  if (phase === 'discovery') {
-    if (lowerQuestion.includes('name')) {
+  // MULTIPLE CHOICE DETECTION - Return exact A/B/C options
+  if (lowerQuestion.includes('choose a, b, or c') || lowerQuestion.includes('please choose')) {
+    // Extract A, B, C options from the question
+    const optionAMatch = lowerQuestion.match(/a\)\s*([^b]*?)(?=\s*b\)|$)/i);
+    const optionBMatch = lowerQuestion.match(/b\)\s*([^c]*?)(?=\s*c\)|$)/i);
+    const optionCMatch = lowerQuestion.match(/c\)\s*([^a-z\)]*?)(?=\s*please|$)/i);
+    
+    if (optionAMatch && optionBMatch && optionCMatch) {
       return [
-        "Hi! I'm Alex",
-        "My name is Sarah",
-        "You can call me Mike",
-        "I'm Jessica"
+        `A) ${optionAMatch[1].trim()}`,
+        `B) ${optionBMatch[1].trim()}`,
+        `C) ${optionCMatch[1].trim()}`
       ];
     }
-    
-    if (lowerQuestion.includes('student') || lowerQuestion.includes('working') || lowerQuestion.includes('career')) {
-      return [
-        "I'm currently a student",
-        "I'm working but looking to switch careers",
-        "I'm working and want to add AI skills",
-        "I'm between jobs right now"
-      ];
-    }
-    
-    if (lowerQuestion.includes('interest') || lowerQuestion.includes('curious') || lowerQuestion.includes('sparked')) {
-      return [
-        "I keep hearing about AI everywhere",
-        "My friend got a job using AI",
-        "I saw some cool AI apps and got curious",
-        "I want to future-proof my career"
-      ];
-    }
-    
-    // Generic discovery fallbacks
+  }
+  
+  // EDUCATION LEVEL QUESTIONS
+  if (lowerQuestion.includes('education') || lowerQuestion.includes('degree') || lowerQuestion.includes('school')) {
     return [
-      "Tell me more about that",
-      "That sounds interesting",
-      "I'd like to learn more",
-      "Can you explain further?"
+      "A) High school",
+      "B) Bachelor's degree", 
+      "C) Postgraduate degree"
     ];
   }
   
-  // Clarification phase suggestions
-  if (phase === 'clarification') {
-    if (lowerQuestion.includes('creating') || lowerQuestion.includes('analyzing') || lowerQuestion.includes('type')) {
-      return [
-        "I'm more interested in creating things",
-        "Analyzing data sounds fascinating",
-        "Working with images and videos appeals to me",
-        "I'm not sure yet, what are the options?"
-      ];
-    }
-    
-    if (lowerQuestion.includes('app') || lowerQuestion.includes('website') || lowerQuestion.includes('build')) {
-      return [
-        "Building apps sounds exciting",
-        "I'd love to create websites with AI",
-        "Making tools that help people",
-        "I'm more interested in data analysis"
-      ];
-    }
-    
-    if (lowerQuestion.includes('learn') || lowerQuestion.includes('prefer')) {
-      return [
-        "I like hands-on learning",
-        "I prefer reading and tutorials",
-        "Video courses work best for me",
-        "I learn by doing projects"
-      ];
-    }
-    
-    // Generic clarification fallbacks
+  // PROGRAMMING EXPERIENCE QUESTIONS
+  if (lowerQuestion.includes('programming') || lowerQuestion.includes('coding') || lowerQuestion.includes('computer')) {
     return [
-      "I'd like to explore that option",
-      "That sounds like something I'd enjoy",
-      "I'm interested in learning more",
-      "Can you tell me about other options?"
+      "A) No experience",
+      "B) Basic familiarity",
+      "C) Confident with code"
     ];
   }
   
-  // Roadmap phase suggestions
-  if (phase === 'roadmap') {
-    if (lowerQuestion.includes('roadmap') || lowerQuestion.includes('generate') || lowerQuestion.includes('create')) {
-      return [
-        "Yes, please create my roadmap!",
-        "That would be great, let's do it",
-        "I'm ready for my personalized plan",
-        "Let me think about it for a moment"
-      ];
-    }
-    
-    // Generic roadmap fallbacks
+  // TIME AVAILABILITY QUESTIONS
+  if (lowerQuestion.includes('time') || lowerQuestion.includes('hours') || lowerQuestion.includes('weekly')) {
     return [
-      "Yes, I'm ready!",
-      "Let's create the roadmap",
-      "I'd love to see my plan",
-      "What would the roadmap include?"
+      "A) 2-4 hours",
+      "B) 5-8 hours", 
+      "C) 10+ hours"
     ];
   }
   
-  // Ultimate fallbacks
+  // AI INTEREST/DOMAIN QUESTIONS
+  if (lowerQuestion.includes('ai') || lowerQuestion.includes('domain') || lowerQuestion.includes('interest')) {
+    return [
+      "A) Business automation",
+      "B) Creative tools",
+      "C) Data analysis"
+    ];
+  }
+  
+  // CURRENT SITUATION QUESTIONS
+  if (lowerQuestion.includes('working') || lowerQuestion.includes('student') || lowerQuestion.includes('situation')) {
+    return [
+      "A) I'm a student",
+      "B) Working professional",
+      "C) Career switching"
+    ];
+  }
+  
+  // NAME/INTRODUCTION QUESTIONS
+  if (lowerQuestion.includes('name') || lowerQuestion.includes('call')) {
+    return [
+      "A) I'll share my name",
+      "B) Let's skip to questions",
+      "C) Tell me more first"
+    ];
+  }
+  
+  // ROADMAP READINESS
+  if (phase === 'roadmap' || lowerQuestion.includes('roadmap') || lowerQuestion.includes('ready')) {
+    return [
+      "A) Yes, create my roadmap!",
+      "B) I need more clarification",
+      "C) What does it include?"
+    ];
+  }
+  
+  // FALLBACK - Generic helpful responses
   return [
-    "That's interesting",
-    "Tell me more",
-    "I'd like to know more about that",
-    "Can you elaborate?"
+    "A) That sounds good",
+    "B) Tell me more options", 
+    "C) I need more information"
   ];
 }
 
@@ -217,7 +199,8 @@ function detectUserLevel(conversationHistory: any[]): 'beginner' | 'intermediate
 function getPhaseFromMessages(conversationHistory: any[]): 'discovery' | 'clarification' | 'roadmap' {
   const userMessages = conversationHistory.filter(msg => msg.role === 'user').length;
   
+  // Matches new fast-progression logic
   if (userMessages <= 2) return 'discovery';
-  if (userMessages <= 4) return 'clarification';
+  if (userMessages <= 4) return 'clarification'; 
   return 'roadmap';
 }

@@ -71,12 +71,11 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
   };
 
   const getContextualFallbacks = () => {
-    // Simple, encouraging suggestions that always work
+    // Default A/B/C structure that matches our new system
     return [
-      "I'm new to AI - can you help me understand the basics?",
-      "What does my background mean for AI opportunities?", 
-      "I'm curious about AI but not sure where to start",
-      "Can you tell me more about what's possible?"
+      "A) That sounds good",
+      "B) Tell me more options",
+      "C) I need more information"
     ];
   };
 
@@ -85,9 +84,9 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     
     setIsLoadingSuggestions(true);
     try {
-      // Short timeout for suggestions - fail fast to fallbacks  
+      // Ultra-short timeout for suggestions - fail fast to fallbacks  
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Suggestions timeout')), 5000)
+        setTimeout(() => reject(new Error('Suggestions timeout')), 3000)
       );
 
       const suggestionsPromise = supabase.functions.invoke('ai-suggestions', {
@@ -141,9 +140,9 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     setIsTyping(true);
 
     try {
-      // Add timeout for API call
+      // Reduced timeout for faster experience
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timed out')), 30000)
+        setTimeout(() => reject(new Error('Request timed out')), 15000)
       );
 
       const apiPromise = supabase.functions.invoke('ai-conversation', {
