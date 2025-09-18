@@ -140,9 +140,9 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     setIsTyping(true);
 
     try {
-      // Reduced timeout for faster experience
+      // Increased timeout to match backend processing time
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timed out')), 15000)
+        setTimeout(() => reject(new Error('Request timed out')), 25000)
       );
 
       const apiPromise = supabase.functions.invoke('ai-conversation', {

@@ -208,7 +208,7 @@ serve(async (req) => {
 
       // Add timeout for API call - optimized for speed
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       try {
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -218,12 +218,12 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-5-mini-2025-08-07',
+        model: 'gpt-4o-mini',
             messages: [
               { role: 'system', content: systemPrompt },
               ...conversationHistory.slice(-4)
             ],
-            max_completion_tokens: 200,
+            max_tokens: 200,
           }),
           signal: controller.signal
         });
@@ -268,7 +268,25 @@ serve(async (req) => {
         
         if (fetchError.name === 'AbortError') {
           console.error('OpenAI request timed out for session:', sessionId);
-          throw new Error('The AI is taking too long to respond. Please try again.');
+          
+          // Provide fallback response instead of crashing
+          const fallbackMessage = "I'm having trouble processing that right now. Let me ask you a simple question instead: What's your current education level? A) High school B) Bachelor's degree C) Advanced degree. Please choose A, B, or C.";
+          
+          // Save fallback message to database
+          await supabase.from('conversation_messages').insert({
+            session_id: sessionId,
+            role: 'assistant',
+            content: fallbackMessage,
+            metadata: { fallback: true, timeout: true }
+          });
+          
+          return new Response(JSON.stringify({ 
+            message: fallbackMessage,
+            phase: currentPhase,
+            isComplete: false 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
         throw fetchError;
       }
