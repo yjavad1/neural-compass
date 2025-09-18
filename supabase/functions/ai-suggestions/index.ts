@@ -22,17 +22,16 @@ function generateContextualSuggestions(
   const lowerQuestion = aiQuestion.toLowerCase();
   
   // MULTIPLE CHOICE DETECTION - Return exact A/B/C options
-  if (lowerQuestion.includes('choose a, b, or c') || lowerQuestion.includes('please choose')) {
-    // Extract A, B, C options from the question
-    const optionAMatch = lowerQuestion.match(/a\)\s*([^b]*?)(?=\s*b\)|$)/i);
-    const optionBMatch = lowerQuestion.match(/b\)\s*([^c]*?)(?=\s*c\)|$)/i);
-    const optionCMatch = lowerQuestion.match(/c\)\s*([^a-z\)]*?)(?=\s*please|$)/i);
+  if (/please choose\s*a,\s*b,\s*or\s*c/i.test(aiQuestion) || /please choose/i.test(aiQuestion)) {
+    const a = aiQuestion.match(/A\)\s*([\s\S]*?)\s*B\)/i);
+    const b = aiQuestion.match(/B\)\s*([\s\S]*?)\s*C\)/i);
+    const c = aiQuestion.match(/C\)\s*([\s\S]*?)(?:\n|\r|Please choose|$)/i);
     
-    if (optionAMatch && optionBMatch && optionCMatch) {
+    if (a && b && c) {
       return [
-        `A) ${optionAMatch[1].trim()}`,
-        `B) ${optionBMatch[1].trim()}`,
-        `C) ${optionCMatch[1].trim()}`
+        `A) ${a[1].trim()}`,
+        `B) ${b[1].trim()}`,
+        `C) ${c[1].trim()}`
       ];
     }
   }

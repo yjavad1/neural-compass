@@ -209,6 +209,7 @@ serve(async (req) => {
       // Add timeout for API call - optimized for speed
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const startedAt = Date.now();
 
       try {
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -229,6 +230,8 @@ serve(async (req) => {
         });
 
         clearTimeout(timeoutId);
+        console.log('OpenAI chat completion status', response.status);
+        console.log('OpenAI latency ms:', Date.now() - startedAt);
 
         const data = await response.json();
         
@@ -252,7 +255,7 @@ serve(async (req) => {
 
         // Extract user profile data when reaching roadmap phase
         if (updatedPhase === 'roadmap') {
-          await extractAndSaveProfile(conversationHistory, sessionId);
+          extractAndSaveProfile(conversationHistory, sessionId).catch((e) => console.error('Profile extraction error:', e));
         }
 
         return new Response(JSON.stringify({ 
@@ -288,7 +291,22 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        throw fetchError;
+        
+        console.error('OpenAI request failed for session:', sessionId, fetchError);
+        const fallbackMessage = "Let's keep going while I sort that out. Which area of AI interests you most? A) Business automation B) Creative tools C) Data analysis. Please choose A, B, or C.";
+        await supabase.from('conversation_messages').insert({
+          session_id: sessionId,
+          role: 'assistant',
+          content: fallbackMessage,
+          metadata: { fallback: true, error: true }
+        });
+        return new Response(JSON.stringify({
+          message: fallbackMessage,
+          phase: currentPhase,
+          isComplete: false
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
     }
 
@@ -379,6 +397,8 @@ Extract the following information and return as valid JSON:
   "date_of_birth": "YYYY-MM-DD format if birth month/day mentioned (use current year or null)"
 }`;
 
+    const profileController = new AbortController();
+    const profileTimeout = setTimeout(() => profileController.abort(), 15000);
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -386,13 +406,15 @@ Extract the following information and return as valid JSON:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5-mini-2025-08-07',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: prompt }
         ],
-        max_completion_tokens: 500,
+        max_tokens: 500,
       }),
+      signal: profileController.signal
     });
+    clearTimeout(profileTimeout);
 
     const data = await response.json();
     const profileData = JSON.parse(data.choices[0].message.content);

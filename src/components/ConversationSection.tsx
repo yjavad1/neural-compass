@@ -32,6 +32,8 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fallbackTimerRef = useRef<number | null>(null);
+  const fallbackInsertedRef = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -77,6 +79,18 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
       "B) Tell me more options",
       "C) I need more information"
     ];
+  };
+
+  const getLocalFallbackQuestion = () => {
+    // Phase-aware minimal, safe question the UI can inject if backend is slow
+    switch (phase) {
+      case 'discovery':
+        return "Quick check-in: What's your education level? A) High school B) Bachelor's C) Postgraduate. Please choose A, B, or C.";
+      case 'clarification':
+        return "Which AI area interests you most? A) Business automation B) Creative tools C) Data analysis. Please choose A, B, or C.";
+      default:
+        return "Ready to start your roadmap? A) Yes B) Need more info C) Not yet. Please choose A, B, or C.";
+    }
   };
 
   const loadSuggestions = async (aiMessage: string) => {
@@ -140,25 +154,64 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
     setIsTyping(true);
 
     try {
-      // Increased timeout to match backend processing time
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timed out')), 25000)
-      );
+      // Helper to call API with a per-call timeout
+      const invokeOnce = async () => {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out')), 25000)
+        );
+        const apiPromise = supabase.functions.invoke('ai-conversation', {
+          body: {
+            action: 'send',
+            message: userMessage.content,
+            sessionId
+          }
+        });
+        return await Promise.race([apiPromise, timeoutPromise]) as any;
+      };
 
-      const apiPromise = supabase.functions.invoke('ai-conversation', {
-        body: {
-          action: 'send',
-          message: userMessage.content,
-          sessionId
+      // Soft local fallback after 10s to keep UX moving
+      const fallbackContent = getLocalFallbackQuestion();
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = window.setTimeout(() => {
+        if (fallbackInsertedRef.current) return;
+        fallbackInsertedRef.current = true;
+        setIsTyping(false);
+        const softMsg: Message = {
+          id: (Date.now() + 2).toString(),
+          role: 'assistant',
+          content: fallbackContent,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, softMsg]);
+        loadSuggestions(fallbackContent);
+      }, 10000);
+
+      // First attempt
+      let result: any;
+      try {
+        result = await invokeOnce();
+      } catch (err: any) {
+        // Retry once on timeout or transient network errors
+        if (err?.message === 'Request timed out' || /network|fetch/i.test(err?.message || '')) {
+          await new Promise(r => setTimeout(r, 800));
+          result = await invokeOnce();
+        } else {
+          throw err;
         }
-      });
+      }
 
-      const { data, error } = await Promise.race([apiPromise, timeoutPromise]) as any;
-
+      const { data, error } = result;
       if (error) throw error;
 
       // Simulate typing delay
-          setTimeout(async () => {
+      setTimeout(async () => {
+        // Clear any soft fallback timer and flag
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        fallbackInsertedRef.current = false;
+
         setIsTyping(false);
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -218,23 +271,45 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
         }
       }, 1000 + Math.random() * 1000);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       setIsTyping(false);
+
+      // Ensure soft-fallback is shown if not already
+      if (!fallbackInsertedRef.current) {
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        const soft = getLocalFallbackQuestion();
+        fallbackInsertedRef.current = true;
+        const softMsg: Message = {
+          id: (Date.now() + 3).toString(),
+          role: 'assistant',
+          content: soft,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, softMsg]);
+        loadSuggestions(soft);
+      }
       
       let errorText = 'Failed to send message. Please try again.';
-      if (error.message === 'Request timed out') {
-        errorText = 'The response is taking too long. Please try again with a shorter message.';
-      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
-        errorText = 'Network error. Please check your connection and try again.';
+      if (error?.message === 'Request timed out') {
+        errorText = 'The response is taking too long. I added a quick question to keep us moving.';
+      } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
+        errorText = 'Network issue detected. I added a quick question to keep us moving.';
       }
       
       toast({
-        title: "Error",
+        title: 'Notice',
         description: errorText,
-        variant: "destructive",
+        variant: 'default',
       });
     } finally {
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
       // Only set loading to false if we haven't already done so above
       if (isLoading) {
         setIsLoading(false);
