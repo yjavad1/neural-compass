@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   CheckCircle, 
   Clock, 
@@ -80,7 +79,7 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
   roadmapData, 
   onRestart 
 }) => {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeSection, setActiveSection] = useState<'overview' | 'justification' | 'learning' | 'next-steps'>('overview');
   const completedPhases = roadmapData.phases.filter(phase => phase.completed).length;
   const progressPercentage = (completedPhases / roadmapData.phases.length) * 100;
 
@@ -102,6 +101,13 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
     }
   };
 
+  const navItems = [
+    { id: 'overview', label: 'Overview', icon: Target },
+    { id: 'justification', label: 'Why This Path?', icon: Lightbulb },
+    { id: 'learning', label: 'Learning Path', icon: BookOpen },
+    { id: 'next-steps', label: 'Next Steps', icon: CheckCircle }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
       <div className="max-w-6xl mx-auto">
@@ -115,16 +121,34 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="justification">Why This Path?</TabsTrigger>
-            <TabsTrigger value="learning-path">Learning Path</TabsTrigger>
-            <TabsTrigger value="next-steps">Next Steps</TabsTrigger>
-          </TabsList>
+        {/* Navigation */}
+        <Card className="mb-8">
+          <CardContent className="p-0">
+            <div className="grid grid-cols-4 gap-0">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveSection(item.id as any)}
+                    className={`p-4 text-center border-r last:border-r-0 transition-colors ${
+                      activeSection === item.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    <Icon className="mx-auto mb-2" size={20} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
+        {/* Overview Section */}
+        {activeSection === 'overview' && (
+          <div className="space-y-6">
             <Card className="border-0 shadow-lg bg-gradient-to-r from-primary/5 to-secondary/5">
               <CardHeader>
                 <CardTitle className="text-2xl md:text-3xl text-center flex items-center justify-center gap-3">
@@ -205,10 +229,12 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Justification Tab */}
-          <TabsContent value="justification" className="space-y-6">
+        {/* Justification Section */}
+        {activeSection === 'justification' && (
+          <div className="space-y-6">
             <Card className="border-0 shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -252,10 +278,12 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Learning Path Tab */}
-          <TabsContent value="learning-path" className="space-y-6">
+        {/* Learning Path Section */}
+        {activeSection === 'learning' && (
+          <div className="space-y-6">
             {roadmapData.phases.map((phase, index) => (
               <Card 
                 key={index} 
@@ -292,7 +320,7 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                           <Star size={16} className="text-primary" />
                           Key Skills ({phase.skills.length})
                         </h4>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 gap-2">
                           {phase.skills.map((skill, skillIndex) => (
                             <div key={skillIndex} className="text-sm flex items-center gap-2 p-2 bg-primary/5 rounded">
                               <div className="w-2 h-2 bg-primary rounded-full" />
@@ -360,10 +388,12 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                 </CardContent>
               </Card>
             ))}
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Next Steps Tab */}
-          <TabsContent value="next-steps" className="space-y-6">
+        {/* Next Steps Section */}
+        {activeSection === 'next-steps' && (
+          <div className="space-y-6">
             <Card className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-blue-50">
               <CardHeader>
                 <CardTitle className="text-xl text-center flex items-center justify-center gap-2">
@@ -390,8 +420,8 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </div>
     </div>
   );
