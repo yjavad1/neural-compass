@@ -227,23 +227,41 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
         setIsLoading(false);
         
         if (data.isComplete) {
+          console.log('Conversation complete, starting roadmap generation...');
           setIsComplete(true);
           // Generate advanced roadmap using the new function
           try {
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from('user_profiles')
               .select('*')
               .order('created_at', { ascending: false })
               .limit(1)
-              .single();
+              .maybeSingle();
+
+            if (profileError) {
+              console.error('Error fetching profile:', profileError);
+              setTimeout(() => {
+                onComplete({ phase: data.phase, sessionId });
+              }, 1000);
+              return;
+            }
 
             if (profile) {
-              const { data: roadmapData } = await supabase.functions.invoke('ai-roadmap-generator', {
+              console.log('Profile found, generating roadmap:', profile.id);
+              const { data: roadmapData, error: roadmapError } = await supabase.functions.invoke('ai-roadmap-generator', {
                 body: {
                   sessionId,
                   profileData: profile
                 }
               });
+              
+              if (roadmapError) {
+                console.error('Error generating roadmap:', roadmapError);
+                setTimeout(() => {
+                  onComplete({ phase: data.phase, sessionId });
+                }, 1000);
+                return;
+              }
               
               setTimeout(() => {
                 onComplete({ 
@@ -253,12 +271,13 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
                 });
               }, 1000);
             } else {
+              console.warn('No profile found for roadmap generation');
               setTimeout(() => {
                 onComplete({ phase: data.phase, sessionId });
               }, 1000);
             }
           } catch (roadmapError) {
-            console.error('Error generating roadmap:', roadmapError);
+            console.error('Unexpected error in roadmap generation:', roadmapError);
             setTimeout(() => {
               onComplete({ phase: data.phase, sessionId });
             }, 1000);
