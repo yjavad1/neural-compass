@@ -243,13 +243,13 @@ serve(async (req) => {
             'Authorization': `Bearer ${openAIApiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-        model: 'gpt-4o-mini',
+            body: JSON.stringify({
+        model: 'gpt-5-mini-2025-08-07',
             messages: [
               { role: 'system', content: systemPrompt },
               ...conversationHistory.slice(-4)
             ],
-            max_tokens: 200,
+            max_completion_tokens: 200,
           }),
           signal: controller.signal
         });
@@ -430,11 +430,11 @@ Extract the following information and return as valid JSON:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-mini-2025-08-07',
         messages: [
           { role: 'system', content: prompt }
         ],
-        max_tokens: 500,
+        max_completion_tokens: 500,
       }),
       signal: profileController.signal
     });
