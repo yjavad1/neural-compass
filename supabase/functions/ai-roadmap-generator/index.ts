@@ -32,8 +32,8 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    // Advanced roadmap generation prompt
-    const roadmapPrompt = `You are an expert AI career advisor creating a comprehensive, personalized learning roadmap. Generate a detailed JSON roadmap based on the user's profile.
+    // Enhanced roadmap generation with career justification
+    const roadmapPrompt = `You are an expert AI career advisor creating a comprehensive, personalized learning roadmap with detailed career path justification.
 
 USER PROFILE:
 ${JSON.stringify(profileData, null, 2)}
@@ -41,54 +41,69 @@ ${JSON.stringify(profileData, null, 2)}
 Generate a roadmap with this EXACT JSON structure:
 
 {
-  "role": "Target AI role title",
-  "difficulty": "Beginner/Intermediate/Advanced",
+  "role": "Specific AI role title",
+  "difficulty": "Beginner/Intermediate/Advanced", 
   "timeline": "X months",
-  "hiringOutlook": "Market outlook description",
-  "description": "Personalized description of the career path",
+  "hiringOutlook": "Strong/Good/Competitive",
+  "justification": {
+    "whyThisPath": "2-3 sentences explaining why this career path is perfect for them based on their background, interests, and goals",
+    "strengths": ["strength 1 they have", "strength 2 they have", "strength 3 they have"],
+    "alternativePaths": ["Alternative role 1", "Alternative role 2"],
+    "whyNotAlternatives": "Brief explanation of why the chosen path is better than alternatives for this specific person"
+  },
+  "salary": {
+    "entry": "$XX,000 - $XX,000",
+    "mid": "$XX,000 - $XX,000", 
+    "senior": "$XX,000 - $XX,000"
+  },
   "phases": [
     {
       "name": "Phase name",
-      "duration": "X weeks/months",
-      "description": "What they'll accomplish",
-      "skills": ["skill1", "skill2", "skill3"],
+      "duration": "X weeks",
+      "objective": "What they'll achieve in this phase",
+      "skills": ["skill1", "skill2", "skill3", "skill4"],
       "projects": [
         {
           "title": "Project name",
-          "description": "What they'll build",
-          "skills": ["skills practiced"]
+          "description": "What they'll build and why it's important",
+          "keySkills": ["skills this project teaches"],
+          "portfolioValue": "Why this project will impress employers"
         }
       ],
       "resources": [
         {
           "title": "Resource name",
           "type": "course/tutorial/book/tool/certification",
-          "provider": "Platform/author name",
-          "url": "https://example.com",
+          "provider": "Platform/author",
+          "url": "https://realurl.com",
           "estimatedTime": "X hours",
-          "description": "Why this resource"
+          "cost": "Free/Paid/Freemium",
+          "difficulty": "Beginner/Intermediate/Advanced",
+          "whyRecommended": "Why this specific resource fits their learning style and background"
         }
       ]
     }
   ],
   "nextSteps": [
-    "Immediate action 1",
-    "Immediate action 2",
-    "Immediate action 3"
+    "Immediate action 1 (this week)",
+    "Setup action 2 (this month)",
+    "Long-term goal 3 (first 3 months)"
   ]
 }
 
 REQUIREMENTS:
-- Create 4-6 phases based on their timeline and goals
-- Include current, real courses and resources (use your knowledge of popular platforms)
-- Make timeline realistic based on their available time per week
-- Include hands-on projects for portfolio building
-- Consider their current experience level and technical background
-- Provide specific, actionable next steps
-- Include diverse resource types (courses, books, tools, certifications)
-- Make it highly personalized to their interests and goals
+- Choose role based on their specific interests, background, and constraints
+- Create detailed justification showing deep understanding of their profile
+- Include realistic salary expectations 
+- 4-5 phases, each building logically on the previous
+- Use REAL courses from Coursera, edX, Udacity, YouTube, etc. with actual URLs when possible
+- Include mix of free and paid resources based on their budget indication
+- Projects should build a cohesive portfolio
+- Consider their time availability for realistic timelines
+- Make resources match their technical comfort level
+- Include specific tools they'll master (Python, TensorFlow, etc.)
 
-Focus on creating a practical, achievable roadmap that leads to their career goals.`;
+Create a roadmap that feels uniquely crafted for this specific person.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

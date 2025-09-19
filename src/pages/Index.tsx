@@ -2,6 +2,7 @@ import { useState } from "react";
 import { HeroSection } from "@/components/HeroSection";
 import ConversationSection from "@/components/ConversationSection";
 import { InteractiveRoadmap } from "@/components/InteractiveRoadmap";
+import { EnhancedRoadmapSection } from "@/components/EnhancedRoadmapSection";
 
 type AppState = "hero" | "quiz" | "roadmap";
 
@@ -228,7 +229,12 @@ const Index = () => {
   }
 
   if (appState === "roadmap" && roadmapData) {
-    return <InteractiveRoadmap roadmapData={roadmapData} onRestart={handleRestart} />;
+    // Use enhanced roadmap if it has the new structure, otherwise use the original
+    return roadmapData.justification ? (
+      <EnhancedRoadmapSection roadmapData={roadmapData} onRestart={handleRestart} />
+    ) : (
+      <InteractiveRoadmap roadmapData={roadmapData} onRestart={handleRestart} />
+    );
   }
 
   return <HeroSection onStartQuiz={handleStartQuiz} />;

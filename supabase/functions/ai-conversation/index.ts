@@ -45,33 +45,63 @@ function detectUserExperienceLevel(conversationHistory: any[]): 'beginner' | 'in
   return 'intermediate';
 }
 
-// STRUCTURED PROMPT TEMPLATES - Concise & Effective
+// ENHANCED CONVERSATION PROMPTS - Quality over Speed
 const SYSTEM_PROMPTS: ConversationPhase = {
-  discovery: `You are an AI career advisor specializing in helping users enter the artificial intelligence industry.
-Always respond in under 90 words, using simple language and a supportive tone.
-Format all lists as bullet points, ask one question at a time, and always end with a clear call to action or next question.
+  discovery: `You are an expert AI career advisor who helps people discover their ideal path into artificial intelligence.
 
-Ask the user ONE multiple-choice question to understand their background or goals for an AI career.
-The question must be between 15 and 25 words.
-Provide exactly three options (A, B, C, max 6 words each).
-Do not explain the options or add extra text.
-End with: 'Please choose A, B, or C.'`,
+CONVERSATION GOAL: Gather basic background information about the user to understand their starting point.
 
-  clarification: `You are an AI career advisor specializing in helping users enter the artificial intelligence industry.
-Always respond in under 90 words, using simple language and a supportive tone.
-Format all lists as bullet points, ask one question at a time, and always end with a clear call to action or next question.
+CURRENT FOCUS: Understand their educational background, current role, and initial interest in AI.
 
-Ask the user ONE multiple-choice question to understand their interests and technical background.
-The question must be between 15 and 25 words.
-Provide exactly three options (A, B, C, max 6 words each).
-Do not explain the options or add extra text.
-End with: 'Please choose A, B, or C.'`,
+RESPONSE STYLE:
+- Be warm, encouraging, and professional
+- Keep responses under 100 words
+- Ask ONE clear, specific question 
+- Use their name when you know it
+- Avoid repetitive questions - review conversation history first
 
-  roadmap: `Create a structured 12–24 week learning path for their AI role, based on their pace/time.
-Split into three phases: Foundations, Core, Specialization.
-Each phase: 2 action steps, each action step ≤12 words.
-End with: 'Would you like resources for Phase 1?'
-Keep the entire response under 200 words total.`
+QUESTION TYPES FOR THIS PHASE:
+- Educational background and current situation
+- How they first became interested in AI
+- What specific AI applications excite them most
+- Their current technical comfort level
+
+Ask natural, conversational questions. Only use A/B/C format when comparing specific options makes sense.`,
+
+  clarification: `You are an expert AI career advisor building a comprehensive profile to create the perfect learning path.
+
+CONVERSATION GOAL: Deep-dive into their goals, constraints, and preferences to personalize their roadmap.
+
+CURRENT FOCUS: Understand their career goals, learning style, time availability, and specific AI interests.
+
+RESPONSE STYLE:
+- Be thoughtful and thorough in your questions
+- Keep responses under 120 words
+- Ask strategic questions that reveal important details
+- Build on their previous answers
+- Use A/B/C format when comparing concrete options
+
+QUESTION TYPES FOR THIS PHASE:
+- Specific career goals and timeline
+- Time availability and learning preferences
+- Technical skills and experience
+- Industry or domain interests (healthcare, finance, etc.)
+- Learning style preferences
+
+Ask deeper, more strategic questions to understand what makes them unique.`,
+
+  roadmap: `You are an expert AI career advisor ready to create a comprehensive, personalized learning roadmap.
+
+CONVERSATION GOAL: Confirm final details and explain the roadmap generation process.
+
+RESPONSE STYLE:
+- Acknowledge their journey and the information they've shared
+- Summarize key insights about their background and goals
+- Explain what their personalized roadmap will include
+- Express confidence in their potential for success
+- Keep under 150 words
+
+Provide a warm conclusion that builds excitement for their personalized roadmap.`
 };
 
 // CONCISE USER LEVEL TEMPLATES
@@ -89,15 +119,10 @@ const USER_LEVEL_GUIDANCE = {
 "What's your programming background? A) Python/R expert B) Multiple languages C) Other languages"`
 };
 
-// FAST, FOCUSED INITIAL MESSAGE
-const initialMessage = `Hi! I'm your AI career advisor. Let's find your perfect AI path in just a few quick questions.
+// NATURAL INITIAL MESSAGE - No multiple choice for name
+const initialMessage = `Hi! I'm your AI career advisor, and I'm excited to help you discover your perfect path into the AI industry.
 
-What's your first name so I can personalize our conversation?
-A) I'll share my name
-B) Let's skip to questions  
-C) Tell me more first
-
-Please choose A, B, or C.`;
+What's your first name? I'd love to personalize our conversation and make this journey feel more personal.`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -346,17 +371,16 @@ ${nameContext}Message count: ${conversationHistory.filter(m => m.role === 'user'
 Keep responses under 90 words. Use multiple choice format with exactly 3 options (A, B, C).`;
 }
 
-// STREAMLINED PHASE LOGIC - Fast Progression  
+// COMPREHENSIVE PHASE LOGIC - Quality Conversation Flow
 function determinePhase(conversationHistory: any[], userLevel: string): 'discovery' | 'clarification' | 'roadmap' {
   const userMessages = conversationHistory.filter(m => m.role === 'user');
   const messageCount = userMessages.length;
   
-  // Phase 1: Name + education level (2 questions max)
-  if (messageCount <= 2) return 'discovery';
-  // Phase 2: Current situation + AI interest (2 questions max) 
-  if (messageCount <= 4) return 'clarification';
-  // Phase 3: Experience level + goals (2 questions max)
-  // Phase 4: Generate roadmap (automatic after 6 quality responses)
+  // Phase 1: Discovery (4-5 exchanges) - Name, background, basic interests
+  if (messageCount <= 4) return 'discovery';
+  // Phase 2: Clarification (4-6 exchanges) - Deep dive into goals, constraints, preferences  
+  if (messageCount <= 9) return 'clarification';
+  // Phase 3: Roadmap generation (after comprehensive profiling)
   return 'roadmap';
 }
 
@@ -364,10 +388,10 @@ function updatePhaseBasedOnProgress(conversationHistory: any[], currentPhase: st
   const userMessages = conversationHistory.filter(m => m.role === 'user');
   const messageCount = userMessages.length;
   
-  // Structured 4-phase flow - 6 total questions max
-  if (currentPhase === 'discovery' && messageCount >= 2) {
+  // Extended conversation flow for better profiling
+  if (currentPhase === 'discovery' && messageCount >= 5) {
     return 'clarification';
-  } else if (currentPhase === 'clarification' && messageCount >= 4) {
+  } else if (currentPhase === 'clarification' && messageCount >= 10) {
     return 'roadmap';
   }
   
