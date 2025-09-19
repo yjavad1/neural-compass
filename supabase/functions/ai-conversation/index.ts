@@ -243,34 +243,45 @@ serve(async (req) => {
             'Authorization': `Bearer ${openAIApiKey}`,
             'Content-Type': 'application/json',
           },
-            body: JSON.stringify({
-        model: 'gpt-5-mini-2025-08-07',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...conversationHistory.slice(-4)
-            ],
-            max_completion_tokens: 200,
-          }),
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',  // Rollback to stable model
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...conversationHistory.slice(-4)
+          ],
+          max_tokens: 400,  // Increased token limit for better responses
+          temperature: 0.7,  // Add temperature for better conversational flow
+        }),
           signal: controller.signal
         });
 
         clearTimeout(timeoutId);
         console.log('OpenAI chat completion status', response.status);
         console.log('OpenAI latency ms:', Date.now() - startedAt);
+        console.log('OpenAI request model:', 'gpt-4o-mini');
+        console.log('OpenAI request tokens limit:', 400);
+        console.log('OpenAI system prompt:', systemPrompt.substring(0, 200) + '...');
 
         const data = await response.json();
+        console.log('OpenAI response data keys:', Object.keys(data));
+        console.log('OpenAI choices array length:', data.choices?.length || 0);
         
         if (!response.ok) {
-          console.error('OpenAI API error:', data);
+          console.error('OpenAI API error status:', response.status);
+          console.error('OpenAI API error data:', JSON.stringify(data, null, 2));
           throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
         }
 
-        let aiResponse = data.choices[0].message.content;
+        let aiResponse = data.choices?.[0]?.message?.content;
+        console.log('OpenAI raw response content:', aiResponse);
+        console.log('OpenAI response length:', aiResponse?.length || 0);
         
         // Guarantee non-empty AI replies with fallback
         if (!aiResponse || aiResponse.trim().length === 0) {
           console.warn('OpenAI returned empty response, using fallback');
+          console.warn('Full OpenAI response object:', JSON.stringify(data, null, 2));
           aiResponse = generateFallbackResponse(userLevel, updatedPhase, personalInfo);
+          console.log('Generated fallback response:', aiResponse);
         }
 
         // Save AI response
@@ -430,11 +441,12 @@ Extract the following information and return as valid JSON:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5-mini-2025-08-07',
+        model: 'gpt-4o-mini',  // Rollback to stable model for profile extraction too
         messages: [
           { role: 'system', content: prompt }
         ],
-        max_completion_tokens: 500,
+        max_tokens: 500,  // Use max_tokens for gpt-4o-mini
+        temperature: 0.3,  // Lower temperature for more consistent JSON extraction
       }),
       signal: profileController.signal
     });
