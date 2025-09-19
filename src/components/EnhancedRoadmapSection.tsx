@@ -3,6 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/components/ui/use-toast";
+import { useRoadmapProgress } from "@/hooks/useRoadmapProgress";
+import { exportRoadmapAsPDF, shareRoadmap, downloadRoadmapJSON } from "@/utils/roadmapExport";
 import { 
   CheckCircle, 
   Clock, 
@@ -15,7 +18,12 @@ import {
   BookOpen,
   Code,
   Award,
-  ExternalLink
+  ExternalLink,
+  Play,
+  FileDown,
+  Link,
+  CheckSquare,
+  Square
 } from "lucide-react";
 
 interface Resource {
@@ -73,15 +81,35 @@ interface EnhancedRoadmapData {
 interface EnhancedRoadmapSectionProps {
   roadmapData: EnhancedRoadmapData;
   onRestart: () => void;
+  sessionId?: string;
+  userName?: string;
 }
 
 export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({ 
   roadmapData, 
-  onRestart 
+  onRestart,
+  sessionId = 'default',
+  userName
 }) => {
   const [activeSection, setActiveSection] = useState<'overview' | 'justification' | 'learning' | 'next-steps'>('overview');
-  const completedPhases = roadmapData.phases.filter(phase => phase.completed).length;
-  const progressPercentage = (completedPhases / roadmapData.phases.length) * 100;
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
+  
+  // Progress tracking
+  const {
+    getOverallProgress,
+    getPhaseProgress,
+    isPhaseCompleted,
+    isProjectCompleted,
+    isResourceCompleted,
+    togglePhaseComplete,
+    toggleProjectComplete,
+    toggleResourceComplete,
+    getNextActionablePhase
+  } = useRoadmapProgress(sessionId);
+
+  const overallProgress = getOverallProgress(roadmapData.phases.length);
+  const nextPhase = getNextActionablePhase();
 
   const getResourceIcon = (type: string) => {
     switch (type) {
@@ -89,6 +117,77 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
       case 'tutorial': return <Code size={16} />;
       case 'certification': return <Award size={16} />;
       default: return <Star size={16} />;
+    }
+  };
+
+  // Export and sharing functions
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      await exportRoadmapAsPDF(roadmapData, userName);
+      toast({
+        title: "Export Successful",
+        description: "Your roadmap has been prepared for printing/download.",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "There was an error exporting your roadmap. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const result = await shareRoadmap(roadmapData, userName);
+      if (result.method === 'clipboard') {
+        toast({
+          title: "Copied to Clipboard",
+          description: "Roadmap details have been copied to your clipboard.",
+        });
+      } else {
+        toast({
+          title: "Shared Successfully",
+          description: "Your roadmap has been shared.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Share Failed",
+        description: "There was an error sharing your roadmap. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadJSON = () => {
+    try {
+      downloadRoadmapJSON(roadmapData, userName);
+      toast({
+        title: "Download Started",
+        description: "Your roadmap JSON file is being downloaded.",
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "There was an error downloading your roadmap. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStartPhase = (phaseIndex: number) => {
+    const phase = roadmapData.phases[phaseIndex];
+    if (phase?.resources.length > 0) {
+      // Open the first resource URL
+      window.open(phase.resources[0].url, '_blank');
+      toast({
+        title: `Started ${phase.name}`,
+        description: `Opening ${phase.resources[0].title} to begin your learning journey.`,
+      });
     }
   };
 
@@ -209,19 +308,27 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                 <div className="mb-6">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium">Overall Progress</span>
-                    <span className="text-sm text-muted-foreground">{completedPhases}/{roadmapData.phases.length} phases</span>
+                    <span className="text-sm text-muted-foreground">{Math.round(overallProgress)}% complete</span>
                   </div>
-                  <Progress value={progressPercentage} className="h-3" />
+                  <Progress value={overallProgress} className="h-3" />
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button className="flex items-center gap-2">
+                  <Button 
+                    onClick={handleExportPDF}
+                    disabled={isExporting}
+                    className="flex items-center gap-2"
+                  >
                     <Download size={16} />
-                    Export PDF
+                    {isExporting ? 'Exporting...' : 'Export PDF'}
                   </Button>
-                  <Button variant="outline" className="flex items-center gap-2">
+                  <Button variant="outline" onClick={handleShare} className="flex items-center gap-2">
                     <Share size={16} />
                     Share Roadmap
+                  </Button>
+                  <Button variant="outline" onClick={handleDownloadJSON} className="flex items-center gap-2">
+                    <FileDown size={16} />
+                    Download JSON
                   </Button>
                   <Button variant="ghost" onClick={onRestart}>
                     Create New Roadmap
@@ -288,9 +395,9 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
               <Card 
                 key={index} 
                 className={`border-l-4 transition-all duration-300 hover:shadow-lg ${
-                  phase.completed 
+                  isPhaseCompleted(index) 
                     ? 'border-l-green-500 bg-green-50/50' 
-                    : index === completedPhases 
+                    : index === nextPhase 
                       ? 'border-l-primary bg-primary/5' 
                       : 'border-l-muted'
                 }`}
@@ -298,16 +405,31 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-xl flex items-center gap-3">
-                      {phase.completed ? (
+                      {isPhaseCompleted(index) ? (
                         <CheckCircle className="text-green-500" size={24} />
-                      ) : index === completedPhases ? (
+                      ) : index === nextPhase ? (
                         <Clock className="text-primary" size={24} />
                       ) : (
                         <div className="w-6 h-6 rounded-full border-2 border-muted" />
                       )}
                       Phase {index + 1}: {phase.name}
                     </CardTitle>
-                    <Badge variant="outline">{phase.duration}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">{phase.duration}</Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => togglePhaseComplete(index)}
+                        className="flex items-center gap-1"
+                      >
+                        {isPhaseCompleted(index) ? (
+                          <CheckSquare className="text-green-500" size={16} />
+                        ) : (
+                          <Square className="text-muted-foreground" size={16} />
+                        )}
+                        Mark Complete
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-muted-foreground mt-2">{phase.objective}</p>
                 </CardHeader>
@@ -336,22 +458,36 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                           <Code size={16} className="text-secondary" />
                           Portfolio Projects
                         </h4>
-                        <div className="space-y-3">
-                          {phase.projects.map((project, projectIndex) => (
-                            <div key={projectIndex} className="p-3 bg-secondary/5 rounded-lg">
-                              <h5 className="font-medium mb-1">{project.title}</h5>
-                              <p className="text-sm text-muted-foreground mb-2">{project.description}</p>
-                              <div className="flex flex-wrap gap-1 mb-2">
-                                {project.keySkills.map((skill, skillIdx) => (
-                                  <Badge key={skillIdx} variant="secondary" className="text-xs">
-                                    {skill}
-                                  </Badge>
-                                ))}
-                              </div>
-                              <p className="text-xs text-green-600 font-medium">{project.portfolioValue}</p>
-                            </div>
-                          ))}
-                        </div>
+                         <div className="space-y-3">
+                           {phase.projects.map((project, projectIndex) => (
+                             <div key={projectIndex} className="p-3 bg-secondary/5 rounded-lg border border-secondary/20">
+                               <div className="flex items-start justify-between mb-2">
+                                 <h5 className="font-medium">{project.title}</h5>
+                                 <Button
+                                   variant="ghost"
+                                   size="sm"
+                                   onClick={() => toggleProjectComplete(index, projectIndex)}
+                                   className="ml-2 flex items-center gap-1"
+                                 >
+                                   {isProjectCompleted(index, projectIndex) ? (
+                                     <CheckSquare className="text-green-500" size={14} />
+                                   ) : (
+                                     <Square className="text-muted-foreground" size={14} />
+                                   )}
+                                 </Button>
+                               </div>
+                               <p className="text-sm text-muted-foreground mb-2">{project.description}</p>
+                               <div className="flex flex-wrap gap-1 mb-2">
+                                 {project.keySkills.map((skill, skillIdx) => (
+                                   <Badge key={skillIdx} variant="secondary" className="text-xs">
+                                     {skill}
+                                   </Badge>
+                                 ))}
+                               </div>
+                               <p className="text-xs text-green-600 font-medium">{project.portfolioValue}</p>
+                             </div>
+                           ))}
+                         </div>
                       </div>
                     </div>
                     
@@ -361,16 +497,37 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                         <BookOpen size={16} className="text-purple-600" />
                         Curated Resources ({phase.resources.length})
                       </h4>
-                      <div className="space-y-3">
-                        {phase.resources.map((resource, resourceIndex) => (
-                          <div key={resourceIndex} className="p-3 border rounded-lg hover:shadow-md transition-shadow">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                {getResourceIcon(resource.type)}
-                                <h5 className="font-medium">{resource.title}</h5>
-                              </div>
-                              <ExternalLink size={14} className="text-muted-foreground" />
-                            </div>
+                       <div className="space-y-3">
+                         {phase.resources.map((resource, resourceIndex) => (
+                           <div key={resourceIndex} className="p-3 border rounded-lg hover:shadow-md transition-all">
+                             <div className="flex items-start justify-between mb-2">
+                               <div className="flex items-center gap-2 flex-1">
+                                 {getResourceIcon(resource.type)}
+                                 <h5 className="font-medium">{resource.title}</h5>
+                               </div>
+                               <div className="flex items-center gap-2">
+                                 <Button
+                                   variant="ghost"
+                                   size="sm"
+                                   onClick={() => window.open(resource.url, '_blank')}
+                                   className="flex items-center gap-1"
+                                 >
+                                   <ExternalLink size={12} />
+                                 </Button>
+                                 <Button
+                                   variant="ghost"
+                                   size="sm"
+                                   onClick={() => toggleResourceComplete(index, resourceIndex)}
+                                   className="flex items-center gap-1"
+                                 >
+                                   {isResourceCompleted(index, resourceIndex) ? (
+                                     <CheckSquare className="text-green-500" size={14} />
+                                   ) : (
+                                     <Square className="text-muted-foreground" size={14} />
+                                   )}
+                                 </Button>
+                               </div>
+                             </div>
                             <p className="text-sm text-muted-foreground mb-2">{resource.provider}</p>
                             <div className="flex flex-wrap gap-1 mb-2">
                               <Badge variant="outline" className="text-xs">{resource.difficulty}</Badge>
@@ -413,10 +570,24 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                     </div>
                   ))}
                 </div>
-                <div className="text-center">
-                  <Button size="lg" className="bg-gradient-to-r from-primary to-secondary text-white font-semibold px-8 py-6">
-                    Start Phase 1: {roadmapData.phases[0]?.name}
-                  </Button>
+                <div className="text-center space-y-4">
+                  {nextPhase < roadmapData.phases.length && (
+                    <Button 
+                      size="lg" 
+                      onClick={() => handleStartPhase(nextPhase)}
+                      className="bg-gradient-to-r from-primary to-secondary text-white font-semibold px-8 py-6"
+                    >
+                      <Play className="mr-2" size={20} />
+                      Start Phase {nextPhase + 1}: {roadmapData.phases[nextPhase]?.name}
+                    </Button>
+                  )}
+                  {nextPhase >= roadmapData.phases.length && (
+                    <div className="text-center space-y-2">
+                      <CheckCircle className="mx-auto text-green-500" size={48} />
+                      <h3 className="text-xl font-semibold text-green-600">Congratulations!</h3>
+                      <p className="text-muted-foreground">You've completed your AI career roadmap.</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

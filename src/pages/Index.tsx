@@ -3,8 +3,9 @@ import { HeroSection } from "@/components/HeroSection";
 import ConversationSection from "@/components/ConversationSection";
 import { InteractiveRoadmap } from "@/components/InteractiveRoadmap";
 import { EnhancedRoadmapSection } from "@/components/EnhancedRoadmapSection";
+import { LoadingTransition } from "@/components/LoadingTransition";
 
-type AppState = "hero" | "quiz" | "roadmap";
+type AppState = "hero" | "quiz" | "loading" | "roadmap";
 
 // Mock AI-generated roadmap data with resources
 const generateRoadmap = (answers: Record<string, string>) => {
@@ -207,31 +208,57 @@ const generateRoadmap = (answers: Record<string, string>) => {
 const Index = () => {
   const [appState, setAppState] = useState<AppState>("hero");
   const [roadmapData, setRoadmapData] = useState<any>(null);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [userName, setUserName] = useState<string>('');
 
   const handleStartQuiz = () => {
     setAppState("quiz");
   };
 
   const handleQuizComplete = (data: any) => {
-    // If we have a generated roadmap from the AI, use it; otherwise use the mock generator
-    const roadmapData = data.roadmap || generateRoadmap({});
-    setRoadmapData(roadmapData);
+    setSessionId(data.sessionId || '');
+    setUserName(data.userName || '');
+    
+    if (data.roadmap) {
+      // Show loading transition before displaying roadmap
+      setAppState("loading");
+      setRoadmapData(data.roadmap);
+    } else {
+      // Use mock generator if no AI roadmap
+      const roadmapData = generateRoadmap({});
+      setRoadmapData(roadmapData);
+      setAppState("roadmap");
+    }
+  };
+
+  const handleLoadingComplete = () => {
     setAppState("roadmap");
   };
 
   const handleRestart = () => {
     setAppState("hero");
     setRoadmapData(null);
+    setSessionId('');
+    setUserName('');
   };
 
   if (appState === "quiz") {
     return <ConversationSection onComplete={handleQuizComplete} />;
   }
 
+  if (appState === "loading") {
+    return <LoadingTransition onComplete={handleLoadingComplete} userName={userName} />;
+  }
+
   if (appState === "roadmap" && roadmapData) {
     // Use enhanced roadmap if it has the new structure, otherwise use the original
     return roadmapData.justification ? (
-      <EnhancedRoadmapSection roadmapData={roadmapData} onRestart={handleRestart} />
+      <EnhancedRoadmapSection 
+        roadmapData={roadmapData} 
+        onRestart={handleRestart}
+        sessionId={sessionId}
+        userName={userName}
+      />
     ) : (
       <InteractiveRoadmap roadmapData={roadmapData} onRestart={handleRestart} />
     );
