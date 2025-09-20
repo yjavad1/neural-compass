@@ -237,7 +237,9 @@ const Index = () => {
   };
 
   const handleQuizComplete = async (answers: Record<string, string>) => {
+    console.log('🎯 Quiz completed, processing answers:', answers);
     const persona = buildPersonaJson(answers);
+    console.log('📝 Built persona:', persona);
     setPersonaJson(persona);
     setUserName(persona.name);
     
@@ -245,25 +247,39 @@ const Index = () => {
     setAppState("loading");
     
     try {
+      console.log('🚀 Calling ai-role-classifier...');
+      
       // Step 1: Get role recommendations
       const { data: roleData, error: roleError } = await supabase.functions.invoke('ai-role-classifier', {
         body: { personaJson: persona }
       });
 
+      console.log('📥 Role classifier response:', { data: roleData, error: roleError });
+
       if (roleError) {
-        console.error('Role classification error:', roleError);
-        // Fallback to mock data
+        console.error('❌ Role classification error:', roleError);
+        console.log('⚠️ Falling back to mock data due to role classification error');
         const roadmapData = generateRoadmap(answers);
         setRoadmapData(roadmapData);
         setAppState("roadmap");
         return;
       }
 
+      if (!roleData || !roleData.recommendations) {
+        console.error('❌ Invalid role data received:', roleData);
+        console.log('⚠️ Falling back to mock data due to invalid role data');
+        const roadmapData = generateRoadmap(answers);
+        setRoadmapData(roadmapData);
+        setAppState("roadmap");
+        return;
+      }
+
+      console.log('✅ Role classification successful, proceeding to role selection');
       setRoleOptions(roleData.recommendations);
       setAppState("role-selection");
     } catch (error) {
-      console.error('Error in quiz completion:', error);
-      // Fallback to mock data
+      console.error('❌ Error in quiz completion:', error);
+      console.log('⚠️ Falling back to mock data due to catch error');
       const roadmapData = generateRoadmap(answers);
       setRoadmapData(roadmapData);
       setAppState("roadmap");
@@ -271,9 +287,13 @@ const Index = () => {
   };
 
   const handleRoleSelection = async (selectedRole: string) => {
+    console.log('🎯 Role selected:', selectedRole);
+    console.log('👤 Using persona:', personaJson);
     setAppState("loading");
     
     try {
+      console.log('🚀 Calling ai-roadmap-generator...');
+      
       // Step 2: Generate roadmap for selected role
       const { data: roadmapData, error: roadmapError } = await supabase.functions.invoke('ai-roadmap-generator', {
         body: { 
@@ -282,18 +302,34 @@ const Index = () => {
         }
       });
 
+      console.log('📥 Roadmap generator response:', { data: roadmapData, error: roadmapError });
+
       if (roadmapError) {
-        console.error('Roadmap generation error:', roadmapError);
-        throw roadmapError;
+        console.error('❌ Roadmap generation error:', roadmapError);
+        console.log('⚠️ Falling back to mock data due to roadmap generation error');
+        const mockRoadmap = generateRoadmap({});
+        setRoadmapData(mockRoadmap);
+        setAppState("roadmap");
+        return;
       }
 
+      if (!roadmapData || !roadmapData.roadmap) {
+        console.error('❌ Invalid roadmap data received:', roadmapData);
+        console.log('⚠️ Falling back to mock data due to invalid roadmap data');
+        const mockRoadmap = generateRoadmap({});
+        setRoadmapData(mockRoadmap);
+        setAppState("roadmap");
+        return;
+      }
+
+      console.log('✅ AI Roadmap generation successful!');
       setRoadmapData(roadmapData.roadmap);
       setAppState("roadmap");
     } catch (error) {
-      console.error('Error generating roadmap:', error);
-      // Fallback to mock data
-      const roadmapData = generateRoadmap({});
-      setRoadmapData(roadmapData);
+      console.error('❌ Error generating roadmap:', error);
+      console.log('⚠️ Falling back to mock data due to catch error');
+      const mockRoadmap = generateRoadmap({});
+      setRoadmapData(mockRoadmap);
       setAppState("roadmap");
     }
   };

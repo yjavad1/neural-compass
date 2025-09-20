@@ -52,5 +52,8 @@ verify_jwt = false
 [functions.ai-suggestions]
 verify_jwt = false
 
+[functions.ai-role-classifier]
+verify_jwt = false
+
 [functions.ai-roadmap-generator]
 verify_jwt = false
