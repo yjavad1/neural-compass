@@ -1,11 +1,26 @@
 import { useState } from "react";
 import { HeroSection } from "@/components/HeroSection";
-import ConversationSection from "@/components/ConversationSection";
+import { QuizSection } from "@/components/QuizSection";
 import { InteractiveRoadmap } from "@/components/InteractiveRoadmap";
 import { EnhancedRoadmapSection } from "@/components/EnhancedRoadmapSection";
 import { LoadingTransition } from "@/components/LoadingTransition";
 
 type AppState = "hero" | "quiz" | "loading" | "roadmap";
+
+// Build compact persona JSON from quiz answers
+const buildPersonaJson = (answers: Record<string, string>) => {
+  return {
+    name: answers.name || "User",
+    background: answers.background ? [answers.background] : ["General"],
+    coding: answers.codingExperience || "none",
+    math: answers.mathSkills || "low", 
+    goal: answers.goals || "learning",
+    interests: answers.interests ? answers.interests.split(',').map(i => i.trim()) : ["AI"],
+    hours_per_week: parseInt(answers.timeCommitment) || 5,
+    constraints: answers.constraints ? answers.constraints.split(',').map(c => c.trim()) : [],
+    timeline_months: parseInt(answers.timeline) || 6
+  };
+};
 
 // Mock AI-generated roadmap data with resources
 const generateRoadmap = (answers: Record<string, string>) => {
@@ -215,20 +230,16 @@ const Index = () => {
     setAppState("quiz");
   };
 
-  const handleQuizComplete = (data: any) => {
-    setSessionId(data.sessionId || '');
-    setUserName(data.userName || '');
+  const handleQuizComplete = (answers: Record<string, string>) => {
+    const personaJson = buildPersonaJson(answers);
+    setUserName(personaJson.name);
     
-    if (data.roadmap) {
-      // Show loading transition before displaying roadmap
-      setAppState("loading");
-      setRoadmapData(data.roadmap);
-    } else {
-      // Use mock generator if no AI roadmap
-      const roadmapData = generateRoadmap({});
-      setRoadmapData(roadmapData);
-      setAppState("roadmap");
-    }
+    // Show loading transition
+    setAppState("loading");
+    
+    // Generate roadmap using compact persona (will be replaced with AI call)
+    const roadmapData = generateRoadmap(answers);
+    setRoadmapData(roadmapData);
   };
 
   const handleLoadingComplete = () => {
@@ -243,7 +254,7 @@ const Index = () => {
   };
 
   if (appState === "quiz") {
-    return <ConversationSection onComplete={handleQuizComplete} />;
+    return <QuizSection onComplete={handleQuizComplete} />;
   }
 
   if (appState === "loading") {
