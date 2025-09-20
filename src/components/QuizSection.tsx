@@ -468,7 +468,18 @@ export const QuizSection = ({ onComplete }: QuizSectionProps) => {
           {/* Input Component */}
           {showInput && !isTyping && (
             <div className="animate-fade-in">
-              {renderInputComponent()}
+              {isLastQuestion && chatHistory.some(m => m.content.includes("Ready?")) ? (
+                <div className="flex justify-center">
+                  <Button 
+                    onClick={() => onComplete(answers)}
+                    className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white px-8 py-2 text-lg font-medium"
+                  >
+                    Let's go! 🚀
+                  </Button>
+                </div>
+              ) : (
+                renderInputComponent()
+              )}
             </div>
           )}
 

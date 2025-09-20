@@ -10,17 +10,19 @@ import { supabase } from "@/integrations/supabase/client";
 type AppState = "hero" | "quiz" | "role-selection" | "loading" | "roadmap";
 
 // Build compact persona JSON from quiz answers
-const buildPersonaJson = (answers: Record<string, string>) => {
+const buildPersonaJson = (answers: Record<string, any>) => {
+  console.log('Building persona from answers:', answers);
+  
   return {
     name: answers.name || "User",
     background: answers.background ? [answers.background] : ["General"],
-    coding: answers.codingExperience || "none",
-    math: answers.mathSkills || "low", 
-    goal: answers.goals || "learning",
-    interests: answers.interests ? answers.interests.split(',').map(i => i.trim()) : ["AI"],
-    hours_per_week: parseInt(answers.timeCommitment) || 5,
-    constraints: answers.constraints ? answers.constraints.split(',').map(c => c.trim()) : [],
-    timeline_months: parseInt(answers.timeline) || 6
+    coding: answers.coding || "none",
+    math: answers.math || "low", 
+    goal: answers.goal || "learning",
+    interests: Array.isArray(answers.interests) ? answers.interests : ["AI"],
+    hours_per_week: parseInt(answers.time) || 5,
+    constraints: Array.isArray(answers.constraints) ? answers.constraints : [],
+    timeline_months: parseInt(answers.timeline?.replace(/\D/g, '')) || 6
   };
 };
 
