@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 type AppState = "hero" | "quiz" | "role-selection" | "loading" | "roadmap";
+type LoadingState = "role-analysis" | "roadmap-generation" | null;
 
 // Build compact persona JSON from quiz answers
 const buildPersonaJson = (answers: Record<string, any>) => {
@@ -228,6 +229,8 @@ const generateRoadmap = (answers: Record<string, string>) => {
 const Index = () => {
   const { toast } = useToast();
   const [appState, setAppState] = useState<AppState>("hero");
+  const [loadingState, setLoadingState] = useState<LoadingState>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [roadmapData, setRoadmapData] = useState<any>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
@@ -245,7 +248,9 @@ const Index = () => {
     setPersonaJson(persona);
     setUserName(persona.name);
     
-    // Show loading transition for role classification
+    // Set processing state to prevent navigation issues
+    setIsProcessing(true);
+    setLoadingState("role-analysis");
     setAppState("loading");
     
     try {
@@ -270,9 +275,13 @@ const Index = () => {
 
       console.log('✅ Role classification successful, proceeding to role selection');
       setRoleOptions(roleData.recommendations);
+      setIsProcessing(false);
+      setLoadingState(null);
       setAppState("role-selection");
     } catch (error) {
       console.error('❌ Error in quiz completion:', error);
+      setIsProcessing(false);
+      setLoadingState(null);
       toast({
         title: "Analysis Failed",
         description: "Failed to analyze your profile. Please try again.",
@@ -285,6 +294,10 @@ const Index = () => {
   const handleRoleSelection = async (selectedRole: string) => {
     console.log('🎯 Role selected:', selectedRole);
     console.log('👤 Using persona:', personaJson);
+    
+    // Set processing state to prevent navigation issues
+    setIsProcessing(true);
+    setLoadingState("roadmap-generation");
     setAppState("loading");
     
     try {
@@ -312,9 +325,13 @@ const Index = () => {
 
       console.log('✅ AI Roadmap generation successful!');
       setRoadmapData(roadmapData.roadmap);
+      setIsProcessing(false);
+      setLoadingState(null);
       setAppState("roadmap");
     } catch (error) {
       console.error('❌ Error generating roadmap:', error);
+      setIsProcessing(false);
+      setLoadingState(null);
       toast({
         title: "Generation Failed",
         description: "Failed to generate your roadmap. Please try again.",
@@ -325,11 +342,16 @@ const Index = () => {
   };
 
   const handleLoadingComplete = () => {
-    setAppState("roadmap");
+    // Only allow completion if not currently processing
+    if (!isProcessing) {
+      setAppState("roadmap");
+    }
   };
 
   const handleRestart = () => {
     setAppState("hero");
+    setLoadingState(null);
+    setIsProcessing(false);
     setRoadmapData(null);
     setSessionId('');
     setUserName('');
@@ -353,7 +375,14 @@ const Index = () => {
   }
 
   if (appState === "loading") {
-    return <LoadingTransition onComplete={handleLoadingComplete} userName={userName} />;
+    return (
+      <LoadingTransition 
+        onComplete={handleLoadingComplete} 
+        userName={userName}
+        loadingState={loadingState}
+        isProcessing={isProcessing}
+      />
+    );
   }
 
   if (appState === "roadmap" && roadmapData) {
@@ -367,6 +396,18 @@ const Index = () => {
       />
     ) : (
       <InteractiveRoadmap roadmapData={roadmapData} onRestart={handleRestart} />
+    );
+  }
+
+  // Prevent fallback to hero during processing
+  if (isProcessing) {
+    return (
+      <LoadingTransition 
+        onComplete={handleLoadingComplete} 
+        userName={userName}
+        loadingState={loadingState}
+        isProcessing={isProcessing}
+      />
     );
   }
 

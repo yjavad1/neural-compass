@@ -6,41 +6,63 @@ import { Brain, Sparkles, Target, CheckCircle } from 'lucide-react';
 interface LoadingTransitionProps {
   onComplete: () => void;
   userName?: string;
+  loadingState?: "role-analysis" | "roadmap-generation" | null;
+  isProcessing?: boolean;
 }
 
-const loadingSteps = [
-  { icon: Brain, text: "Analyzing your profile...", duration: 1500 },
-  { icon: Sparkles, text: "Generating personalized roadmap...", duration: 2000 },
-  { icon: Target, text: "Optimizing learning path...", duration: 1500 },
-  { icon: CheckCircle, text: "Finalizing your journey...", duration: 1000 }
+const roleAnalysisSteps = [
+  { icon: Brain, text: "Analyzing your profile...", duration: 2000 },
+  { icon: Target, text: "Identifying career matches...", duration: 2000 },
+  { icon: CheckCircle, text: "Preparing recommendations...", duration: 1500 }
+];
+
+const roadmapGenerationSteps = [
+  { icon: Sparkles, text: "Creating personalized roadmap...", duration: 3000 },
+  { icon: Target, text: "Optimizing learning path...", duration: 3000 },
+  { icon: Brain, text: "Adding resources and projects...", duration: 3000 },
+  { icon: CheckCircle, text: "Finalizing your journey...", duration: 2000 }
 ];
 
 export const LoadingTransition: React.FC<LoadingTransitionProps> = ({ 
   onComplete, 
-  userName 
+  userName,
+  loadingState,
+  isProcessing = false
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
+    if (!isProcessing) {
+      setIsComplete(true);
+      setTimeout(onComplete, 800);
+      return;
+    }
+
     let progressInterval: NodeJS.Timeout;
     let stepTimeout: NodeJS.Timeout;
 
+    // Choose steps based on loading state
+    const steps = loadingState === "role-analysis" ? roleAnalysisSteps : roadmapGenerationSteps;
+
     const runStep = (stepIndex: number) => {
-      if (stepIndex >= loadingSteps.length) {
-        setIsComplete(true);
-        setTimeout(onComplete, 800);
+      if (stepIndex >= steps.length || !isProcessing) {
+        // Don't auto-complete if still processing
+        if (!isProcessing) {
+          setIsComplete(true);
+          setTimeout(onComplete, 800);
+        }
         return;
       }
 
       setCurrentStep(stepIndex);
-      const step = loadingSteps[stepIndex];
-      const stepProgress = (stepIndex / loadingSteps.length) * 100;
+      const step = steps[stepIndex];
+      const stepProgress = (stepIndex / steps.length) * 100;
       
       // Animate progress for this step
       let currentProgress = stepProgress;
-      const targetProgress = ((stepIndex + 1) / loadingSteps.length) * 100;
+      const targetProgress = ((stepIndex + 1) / steps.length) * 100;
       const progressIncrement = (targetProgress - stepProgress) / (step.duration / 50);
 
       progressInterval = setInterval(() => {
@@ -64,7 +86,7 @@ export const LoadingTransition: React.FC<LoadingTransitionProps> = ({
       clearInterval(progressInterval);
       clearTimeout(stepTimeout);
     };
-  }, [onComplete]);
+  }, [onComplete, isProcessing, loadingState]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 flex items-center justify-center p-6">
@@ -93,7 +115,7 @@ export const LoadingTransition: React.FC<LoadingTransitionProps> = ({
 
             {/* Current Step */}
             <div className="flex items-center gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
-              {loadingSteps.map((step, index) => {
+              {(loadingState === "role-analysis" ? roleAnalysisSteps : roadmapGenerationSteps).map((step, index) => {
                 const Icon = step.icon;
                 const isActive = index === currentStep;
                 const isCompleted = index < currentStep;
@@ -107,7 +129,7 @@ export const LoadingTransition: React.FC<LoadingTransitionProps> = ({
                     `}>
                       <Icon size={20} />
                     </div>
-                    {index < loadingSteps.length - 1 && (
+                    {index < (loadingState === "role-analysis" ? roleAnalysisSteps : roadmapGenerationSteps).length - 1 && (
                       <div className={`
                         w-8 h-1 rounded transition-all duration-300
                         ${isCompleted ? 'bg-green-500' : 'bg-muted'}
@@ -121,7 +143,7 @@ export const LoadingTransition: React.FC<LoadingTransitionProps> = ({
             {/* Current Step Text */}
             <div className="text-center">
               <p className="font-medium text-lg animate-pulse">
-                {loadingSteps[currentStep]?.text}
+                {(loadingState === "role-analysis" ? roleAnalysisSteps : roadmapGenerationSteps)[currentStep]?.text}
               </p>
             </div>
 
