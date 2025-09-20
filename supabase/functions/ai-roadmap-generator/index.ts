@@ -173,13 +173,26 @@ Return ONLY valid JSON, no explanations or markdown.`;
         throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
       }
 
-      const content = data.choices[0].message.content.trim();
+      let content = data.choices[0].message.content.trim();
       console.log(`Attempt ${attempt} - Raw AI response:`, content);
+
+      // Handle markdown-wrapped JSON
+      if (content.includes('```json')) {
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          content = jsonMatch[1];
+        }
+      } else if (content.includes('```')) {
+        const jsonMatch = content.match(/```\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          content = jsonMatch[1];
+        }
+      }
 
       // Parse JSON
       let roadmapData;
       try {
-        roadmapData = JSON.parse(content);
+        roadmapData = JSON.parse(content.trim());
       } catch (parseError) {
         console.error(`Attempt ${attempt} - JSON parse failed:`, parseError);
         if (attempt === maxRetries) {

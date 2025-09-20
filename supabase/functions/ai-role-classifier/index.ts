@@ -110,10 +110,27 @@ Match the path type to their TRUE INTENT, not just assume they want a career cha
 
     let roleRecommendations;
     try {
-      roleRecommendations = JSON.parse(data.choices[0].message.content);
+      let content = data.choices[0].message.content;
+      console.log('Raw AI response:', content);
+      
+      // Handle markdown-wrapped JSON
+      if (content.includes('```json')) {
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          content = jsonMatch[1];
+        }
+      } else if (content.includes('```')) {
+        const jsonMatch = content.match(/```\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          content = jsonMatch[1];
+        }
+      }
+      
+      roleRecommendations = JSON.parse(content.trim());
       console.log('Role classification result:', roleRecommendations);
     } catch (parseError) {
       console.error('Failed to parse role recommendations:', data.choices[0].message.content);
+      console.error('Parse error:', parseError.message);
       throw new Error('Invalid JSON response from AI');
     }
 

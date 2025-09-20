@@ -6,6 +6,7 @@ import { InteractiveRoadmap } from "@/components/InteractiveRoadmap";
 import { EnhancedRoadmapSection } from "@/components/EnhancedRoadmapSection";
 import { LoadingTransition } from "@/components/LoadingTransition";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 type AppState = "hero" | "quiz" | "role-selection" | "loading" | "roadmap";
 
@@ -225,6 +226,7 @@ const generateRoadmap = (answers: Record<string, string>) => {
 };
 
 const Index = () => {
+  const { toast } = useToast();
   const [appState, setAppState] = useState<AppState>("hero");
   const [roadmapData, setRoadmapData] = useState<any>(null);
   const [sessionId, setSessionId] = useState<string>('');
@@ -271,10 +273,12 @@ const Index = () => {
       setAppState("role-selection");
     } catch (error) {
       console.error('❌ Error in quiz completion:', error);
-      console.log('⚠️ Falling back to mock data due to catch error');
-      const roadmapData = generateRoadmap(answers);
-      setRoadmapData(roadmapData);
-      setAppState("roadmap");
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to analyze your profile. Please try again.",
+        variant: "destructive",
+      });
+      setAppState("quiz");
     }
   };
 
@@ -311,10 +315,12 @@ const Index = () => {
       setAppState("roadmap");
     } catch (error) {
       console.error('❌ Error generating roadmap:', error);
-      console.log('⚠️ Falling back to mock data due to catch error');
-      const mockRoadmap = generateRoadmap({});
-      setRoadmapData(mockRoadmap);
-      setAppState("roadmap");
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate your roadmap. Please try again.",
+        variant: "destructive",
+      });
+      setAppState("role-selection");
     }
   };
 
