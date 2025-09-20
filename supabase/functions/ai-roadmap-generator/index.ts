@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { z } from 'https://esm.sh/zod@3.22.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,36 +13,70 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+// Zod schema for roadmap validation
+const ProjectSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  keySkills: z.array(z.string()),
+  portfolioValue: z.string(),
+});
 
-  try {
-    const { sessionId, profileData } = await req.json();
+const ResourceSchema = z.object({
+  title: z.string(),
+  type: z.string(),
+  provider: z.string(),
+  url: z.string().url(),
+  estimatedTime: z.string(),
+  cost: z.string(),
+  difficulty: z.string(),
+  whyRecommended: z.string(),
+});
 
-    if (!sessionId || !profileData) {
-      return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+const PhaseSchema = z.object({
+  name: z.string(),
+  duration: z.string(),
+  objective: z.string(),
+  skills: z.array(z.string()),
+  projects: z.array(ProjectSchema),
+  resources: z.array(ResourceSchema),
+});
 
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
+const RoadmapSchema = z.object({
+  role: z.string(),
+  difficulty: z.string(),
+  timeline: z.string(),
+  hiringOutlook: z.string(),
+  justification: z.object({
+    whyThisPath: z.string(),
+    strengths: z.array(z.string()),
+    alternativePaths: z.array(z.string()),
+    whyNotAlternatives: z.string(),
+  }),
+  salary: z.object({
+    entry: z.string(),
+    mid: z.string(),
+    senior: z.string(),
+  }),
+  phases: z.array(PhaseSchema),
+  nextSteps: z.array(z.string()),
+});
 
-    // Enhanced roadmap generation with career justification
-    const roadmapPrompt = `You are an expert AI career advisor creating a comprehensive, personalized learning roadmap with detailed career path justification.
+async function generateRoadmapWithRetry(personaJson: any, selectedRole: string, openAIApiKey: string, maxRetries = 3): Promise<any> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`Roadmap generation attempt ${attempt}/${maxRetries}`);
+    
+    try {
+      const roadmapPrompt = `You are an expert AI career advisor creating a comprehensive, personalized learning roadmap.
 
-USER PROFILE:
-${JSON.stringify(profileData, null, 2)}
+USER PERSONA:
+${JSON.stringify(personaJson, null, 2)}
 
-Generate a roadmap with this EXACT JSON structure:
+SELECTED ROLE: ${selectedRole}
+
+Generate a roadmap with this EXACT JSON structure (must be valid JSON):
 
 {
-  "role": "Specific AI role title",
+  "role": "${selectedRole}",
   "difficulty": "Beginner/Intermediate/Advanced", 
   "timeline": "X months",
   "hiringOutlook": "Strong/Good/Competitive",
@@ -92,51 +127,104 @@ Generate a roadmap with this EXACT JSON structure:
 }
 
 REQUIREMENTS:
-- Choose role based on their specific interests, background, and constraints
-- Create detailed justification showing deep understanding of their profile
-- Include realistic salary expectations 
+- Build roadmap specifically for ${selectedRole}
+- Consider their coding level (${personaJson.coding}) and math skills (${personaJson.math})
 - 4-5 phases, each building logically on the previous
-- Use REAL courses from Coursera, edX, Udacity, YouTube, etc. with actual URLs when possible
-- Include mix of free and paid resources based on their budget indication
-- Projects should build a cohesive portfolio
-- Consider their time availability for realistic timelines
-- Make resources match their technical comfort level
-- Include specific tools they'll master (Python, TensorFlow, etc.)
+- Use REAL courses from Coursera, edX, Udacity, YouTube, etc. with actual URLs
+- Include mix of free/paid resources based on budget constraints
+- Projects should build a cohesive portfolio for ${selectedRole}
+- Consider their ${personaJson.hours_per_week} hours/week availability
+- Match their timeline of ${personaJson.timeline_months} months
+- Factor in constraints: ${personaJson.constraints?.join(', ') || 'none'}
 
-Create a roadmap that feels uniquely crafted for this specific person.`;
+Return ONLY valid JSON, no explanations or markdown.`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-5-mini-2025-08-07',
-        messages: [
-          { role: 'system', content: roadmapPrompt }
-        ],
-        max_completion_tokens: 2000,
-      }),
-    });
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: roadmapPrompt }
+          ],
+          max_tokens: 2500,
+          temperature: 0.3,
+        }),
+      });
 
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.error('OpenAI API error:', data);
-      throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('OpenAI API error:', data);
+        throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+      }
+
+      const content = data.choices[0].message.content.trim();
+      console.log(`Attempt ${attempt} - Raw AI response:`, content);
+
+      // Parse JSON
+      let roadmapData;
+      try {
+        roadmapData = JSON.parse(content);
+      } catch (parseError) {
+        console.error(`Attempt ${attempt} - JSON parse failed:`, parseError);
+        if (attempt === maxRetries) {
+          throw new Error('Failed to get valid JSON after all retries');
+        }
+        continue;
+      }
+
+      // Validate with Zod
+      try {
+        const validatedRoadmap = RoadmapSchema.parse(roadmapData);
+        console.log(`Attempt ${attempt} - Validation successful`);
+        return validatedRoadmap;
+      } catch (validationError) {
+        console.error(`Attempt ${attempt} - Validation failed:`, validationError);
+        if (attempt === maxRetries) {
+          throw new Error('Failed to get valid roadmap schema after all retries');
+        }
+        continue;
+      }
+    } catch (error) {
+      console.error(`Attempt ${attempt} failed:`, error);
+      if (attempt === maxRetries) {
+        throw error;
+      }
+    }
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { personaJson, selectedRole } = await req.json();
+
+    if (!personaJson || !selectedRole) {
+      return new Response(JSON.stringify({ error: 'Missing persona data or selected role' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const roadmapData = JSON.parse(data.choices[0].message.content);
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
 
-    // Update session with generated roadmap
-    await supabase
-      .from('conversation_sessions')
-      .update({ 
-        session_data: roadmapData,
-        roadmap_generated: true 
-      })
-      .eq('id', sessionId);
+    console.log('Generating roadmap for role:', selectedRole);
+    console.log('Persona:', personaJson);
+
+    // Generate roadmap with retry logic and validation
+    const roadmapData = await generateRoadmapWithRetry(personaJson, selectedRole, openAIApiKey);
+
+    console.log('Successfully generated and validated roadmap');
 
     return new Response(JSON.stringify({ roadmap: roadmapData }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

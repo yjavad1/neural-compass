@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { HeroSection } from "@/components/HeroSection";
 import { QuizSection } from "@/components/QuizSection";
+import { RoleSelectionSection } from "@/components/RoleSelectionSection";
 import { InteractiveRoadmap } from "@/components/InteractiveRoadmap";
 import { EnhancedRoadmapSection } from "@/components/EnhancedRoadmapSection";
 import { LoadingTransition } from "@/components/LoadingTransition";
+import { supabase } from "@/integrations/supabase/client";
 
-type AppState = "hero" | "quiz" | "loading" | "roadmap";
+type AppState = "hero" | "quiz" | "role-selection" | "loading" | "roadmap";
 
 // Build compact persona JSON from quiz answers
 const buildPersonaJson = (answers: Record<string, string>) => {
@@ -225,21 +227,73 @@ const Index = () => {
   const [roadmapData, setRoadmapData] = useState<any>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
+  const [personaJson, setPersonaJson] = useState<any>(null);
+  const [roleOptions, setRoleOptions] = useState<any>(null);
 
   const handleStartQuiz = () => {
     setAppState("quiz");
   };
 
-  const handleQuizComplete = (answers: Record<string, string>) => {
-    const personaJson = buildPersonaJson(answers);
-    setUserName(personaJson.name);
+  const handleQuizComplete = async (answers: Record<string, string>) => {
+    const persona = buildPersonaJson(answers);
+    setPersonaJson(persona);
+    setUserName(persona.name);
     
-    // Show loading transition
+    // Show loading transition for role classification
     setAppState("loading");
     
-    // Generate roadmap using compact persona (will be replaced with AI call)
-    const roadmapData = generateRoadmap(answers);
-    setRoadmapData(roadmapData);
+    try {
+      // Step 1: Get role recommendations
+      const { data: roleData, error: roleError } = await supabase.functions.invoke('ai-role-classifier', {
+        body: { personaJson: persona }
+      });
+
+      if (roleError) {
+        console.error('Role classification error:', roleError);
+        // Fallback to mock data
+        const roadmapData = generateRoadmap(answers);
+        setRoadmapData(roadmapData);
+        setAppState("roadmap");
+        return;
+      }
+
+      setRoleOptions(roleData.recommendations);
+      setAppState("role-selection");
+    } catch (error) {
+      console.error('Error in quiz completion:', error);
+      // Fallback to mock data
+      const roadmapData = generateRoadmap(answers);
+      setRoadmapData(roadmapData);
+      setAppState("roadmap");
+    }
+  };
+
+  const handleRoleSelection = async (selectedRole: string) => {
+    setAppState("loading");
+    
+    try {
+      // Step 2: Generate roadmap for selected role
+      const { data: roadmapData, error: roadmapError } = await supabase.functions.invoke('ai-roadmap-generator', {
+        body: { 
+          personaJson,
+          selectedRole 
+        }
+      });
+
+      if (roadmapError) {
+        console.error('Roadmap generation error:', roadmapError);
+        throw roadmapError;
+      }
+
+      setRoadmapData(roadmapData.roadmap);
+      setAppState("roadmap");
+    } catch (error) {
+      console.error('Error generating roadmap:', error);
+      // Fallback to mock data
+      const roadmapData = generateRoadmap({});
+      setRoadmapData(roadmapData);
+      setAppState("roadmap");
+    }
   };
 
   const handleLoadingComplete = () => {
@@ -251,10 +305,23 @@ const Index = () => {
     setRoadmapData(null);
     setSessionId('');
     setUserName('');
+    setPersonaJson(null);
+    setRoleOptions(null);
   };
 
   if (appState === "quiz") {
     return <QuizSection onComplete={handleQuizComplete} />;
+  }
+
+  if (appState === "role-selection") {
+    return (
+      <RoleSelectionSection
+        userName={userName}
+        roleOptions={roleOptions || []}
+        onSelectRole={handleRoleSelection}
+        onBack={() => setAppState("quiz")}
+      />
+    );
   }
 
   if (appState === "loading") {
