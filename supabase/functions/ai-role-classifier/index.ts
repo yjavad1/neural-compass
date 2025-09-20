@@ -28,32 +28,39 @@ serve(async (req) => {
 
     console.log('Role classification request for persona:', personaJson);
 
-    const rolePrompt = `You are an expert AI career advisor analyzing a user's profile to suggest the best AI career paths.
+    const rolePrompt = `You are an expert AI learning advisor analyzing a user's profile to suggest the best AI learning paths and opportunities.
 
 USER PERSONA:
 ${JSON.stringify(personaJson, null, 2)}
 
-Based on their background, coding experience, math skills, interests, goals, time constraints, and timeline, suggest 2-3 ranked AI roles that would be the best fit.
+CRITICAL ANALYSIS: First, determine their PRIMARY INTENT from their goal and background:
+
+1. **KNOWLEDGE SEEKER**: Goal is "knowledge" or "learning" - they want to understand AI concepts, not necessarily change careers
+2. **CAREER CHANGER**: Goal is "career" or "job" - they want to transition into an AI career
+3. **SKILL ENHANCER**: Goal is to add AI skills to their current profession
+4. **INDUSTRY APPLIER**: They want to apply AI within their current industry/job
+
+Based on their background, coding experience, math skills, interests, goals, time constraints, and timeline, suggest 2-3 ranked AI paths that match their TRUE INTENT.
 
 Return EXACTLY this JSON structure:
 {
   "recommendations": [
     {
-      "role": "Specific AI role title",
+      "role": "Specific path title (Learning Path/Career Path/Skill Enhancement/Industry Application)",
       "fitScore": 95,
-      "reasoning": "2-3 sentences explaining why this role matches their profile perfectly",
+      "reasoning": "2-3 sentences explaining why this path matches their profile and TRUE INTENT perfectly",
       "timeToEntry": "3-6 months",
       "difficulty": "Beginner/Intermediate/Advanced"
     },
     {
-      "role": "Second best role",
+      "role": "Second best path",
       "fitScore": 85,
       "reasoning": "Why this is second choice",
       "timeToEntry": "6-9 months", 
       "difficulty": "Intermediate"
     },
     {
-      "role": "Third option role",
+      "role": "Third option path",
       "fitScore": 75,
       "reasoning": "Why this could work as backup",
       "timeToEntry": "9-12 months",
@@ -65,12 +72,18 @@ Return EXACTLY this JSON structure:
 REQUIREMENTS:
 - Consider their coding level (${personaJson.coding}) and math skills (${personaJson.math})
 - Match their interests: ${personaJson.interests?.join(', ') || 'general AI'}
-- Factor in their goal: ${personaJson.goal}
+- CRITICALLY analyze their goal: ${personaJson.goal}
 - Consider time availability: ${personaJson.hours_per_week} hours/week
 - Respect constraints: ${personaJson.constraints?.join(', ') || 'none'}
 - Timeline expectation: ${personaJson.timeline_months} months
 
-Choose realistic roles that match their skill level and interests. Focus on actionable career paths, not generic titles.`;
+PATH TYPES TO CONSIDER:
+- **Knowledge/Learning Paths**: "AI Fundamentals Learning Path", "Deep Learning Explorer", "AI Ethics & Philosophy Track"
+- **Career Transition Paths**: "AI Engineer", "Data Scientist", "ML Engineer" 
+- **Skill Enhancement Paths**: "AI for [Current Profession]", "AI Tools Mastery", "AI Automation Specialist"
+- **Industry Application Paths**: "AI in Healthcare", "AI for Business", "AI in Creative Industries"
+
+Match the path type to their TRUE INTENT, not just assume they want a career change.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

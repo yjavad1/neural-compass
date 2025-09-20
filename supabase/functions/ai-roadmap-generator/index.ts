@@ -66,12 +66,18 @@ async function generateRoadmapWithRetry(personaJson: any, selectedRole: string, 
     console.log(`Roadmap generation attempt ${attempt}/${maxRetries}`);
     
     try {
-      const roadmapPrompt = `You are an expert AI career advisor creating a comprehensive, personalized learning roadmap.
+      const roadmapPrompt = `You are an expert AI learning advisor creating a comprehensive, personalized roadmap.
 
 USER PERSONA:
 ${JSON.stringify(personaJson, null, 2)}
 
-SELECTED ROLE: ${selectedRole}
+SELECTED PATH: ${selectedRole}
+
+CRITICAL: Analyze the selected path to determine the roadmap type:
+- If path contains "Learning Path", "Explorer", "Track" → Create EDUCATIONAL roadmap (knowledge-focused)
+- If path contains "Engineer", "Scientist", "Developer" → Create CAREER roadmap (job-focused)
+- If path contains "for [Profession]", "Tools", "Automation" → Create SKILL ENHANCEMENT roadmap
+- If path contains "in [Industry]" → Create INDUSTRY APPLICATION roadmap
 
 Generate a roadmap with this EXACT JSON structure (must be valid JSON):
 
@@ -132,10 +138,15 @@ REQUIREMENTS:
 - 4-5 phases, each building logically on the previous
 - Use REAL courses from Coursera, edX, Udacity, YouTube, etc. with actual URLs
 - Include mix of free/paid resources based on budget constraints
-- Projects should build a cohesive portfolio for ${selectedRole}
 - Consider their ${personaJson.hours_per_week} hours/week availability
 - Match their timeline of ${personaJson.timeline_months} months
 - Factor in constraints: ${personaJson.constraints?.join(', ') || 'none'}
+
+ROADMAP FOCUS GUIDELINES:
+- **EDUCATIONAL roadmaps**: Focus on understanding concepts, theory, and broad knowledge. Projects are exploratory. Salary info can be "Knowledge-focused path" or focus on potential applications.
+- **CAREER roadmaps**: Focus on job-ready skills, portfolio building, and employment. Include realistic salary ranges and hiring advice.
+- **SKILL ENHANCEMENT roadmaps**: Focus on practical tools and applications within their current role. Projects enhance their existing work.
+- **INDUSTRY APPLICATION roadmaps**: Focus on AI applications specific to their industry. Projects solve real industry problems.
 
 Return ONLY valid JSON, no explanations or markdown.`;
 

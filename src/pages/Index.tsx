@@ -258,20 +258,12 @@ const Index = () => {
 
       if (roleError) {
         console.error('❌ Role classification error:', roleError);
-        console.log('⚠️ Falling back to mock data due to role classification error');
-        const roadmapData = generateRoadmap(answers);
-        setRoadmapData(roadmapData);
-        setAppState("roadmap");
-        return;
+        throw new Error(`Role classification failed: ${roleError.message}`);
       }
 
       if (!roleData || !roleData.recommendations) {
         console.error('❌ Invalid role data received:', roleData);
-        console.log('⚠️ Falling back to mock data due to invalid role data');
-        const roadmapData = generateRoadmap(answers);
-        setRoadmapData(roadmapData);
-        setAppState("roadmap");
-        return;
+        throw new Error('Invalid role classification response');
       }
 
       console.log('✅ Role classification successful, proceeding to role selection');
@@ -306,20 +298,12 @@ const Index = () => {
 
       if (roadmapError) {
         console.error('❌ Roadmap generation error:', roadmapError);
-        console.log('⚠️ Falling back to mock data due to roadmap generation error');
-        const mockRoadmap = generateRoadmap({});
-        setRoadmapData(mockRoadmap);
-        setAppState("roadmap");
-        return;
+        throw new Error(`Roadmap generation failed: ${roadmapError.message}`);
       }
 
       if (!roadmapData || !roadmapData.roadmap) {
         console.error('❌ Invalid roadmap data received:', roadmapData);
-        console.log('⚠️ Falling back to mock data due to invalid roadmap data');
-        const mockRoadmap = generateRoadmap({});
-        setRoadmapData(mockRoadmap);
-        setAppState("roadmap");
-        return;
+        throw new Error('Invalid roadmap response');
       }
 
       console.log('✅ AI Roadmap generation successful!');
