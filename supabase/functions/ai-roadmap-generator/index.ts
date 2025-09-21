@@ -61,7 +61,64 @@ const RoadmapSchema = z.object({
   nextSteps: z.array(z.string()),
 });
 
-async function generateRoadmapWithRetry(personaJson: any, selectedRole: string, openAIApiKey: string, maxRetries = 3): Promise<any> {
+// Function to get curated resources from database
+async function getCuratedResources(phase: string, userLevel: string, limit: number = 8) {
+  try {
+    console.log(`Querying curated resources for phase: ${phase}, level: ${userLevel}`);
+    
+    // Query resources based on phase, user level, and foundational requirements
+    const { data: resources, error } = await supabase
+      .from('resources')
+      .select(`
+        *,
+        resource_phase_mappings!inner(relevance_score),
+        learning_phases!inner(name)
+      `)
+      .eq('learning_phases.name', 'Foundations & Core')
+      .eq('is_core_foundational', true)
+      .lte('difficulty_level', userLevel === 'beginner' ? 'beginner' : userLevel === 'intermediate' ? 'intermediate' : 'advanced')
+      .order('quality_score', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching curated resources:', error);
+      return [];
+    }
+
+    console.log(`Found ${resources?.length || 0} curated resources`);
+    return resources || [];
+  } catch (error) {
+    console.error('Exception in getCuratedResources:', error);
+    return [];
+  }
+}
+
+// Function to convert database resource to roadmap resource format
+function convertDbResourceToRoadmapResource(dbResource: any): any {
+  return {
+    title: dbResource.title,
+    type: dbResource.type,
+    provider: dbResource.provider,
+    url: dbResource.url,
+    estimatedTime: dbResource.duration_hours ? `${dbResource.duration_hours} hours` : 'Self-paced',
+    cost: dbResource.cost_type === 'free' ? 'Free' : 
+          dbResource.cost_type === 'paid' ? 'Paid' :
+          dbResource.cost_type === 'freemium' ? 'Freemium' : 'Subscription',
+    difficulty: dbResource.difficulty_level.charAt(0).toUpperCase() + dbResource.difficulty_level.slice(1),
+    whyRecommended: dbResource.description || `High-quality ${dbResource.type} from ${dbResource.provider}`
+  };
+}
+
+async function generateRoadmapWithCuratedResources(personaJson: any, selectedRole: string, openAIApiKey: string, maxRetries = 3): Promise<any> {
+  // Get curated resources for foundations phase
+  const userLevel = personaJson.coding === 'none' ? 'beginner' : 
+                   personaJson.coding === 'basic' ? 'intermediate' : 'advanced';
+  
+  const curatedResources = await getCuratedResources('Foundations & Core', userLevel);
+  const roadmapResources = curatedResources.map(convertDbResourceToRoadmapResource);
+  
+  console.log(`Using ${roadmapResources.length} curated resources for roadmap generation`);
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     console.log(`Roadmap generation attempt ${attempt}/${maxRetries}`);
     
@@ -72,6 +129,9 @@ USER PERSONA:
 ${JSON.stringify(personaJson, null, 2)}
 
 SELECTED PATH: ${selectedRole}
+
+CURATED FOUNDATION RESOURCES (use these for Foundations & Core phase):
+${JSON.stringify(roadmapResources, null, 2)}
 
 CRITICAL: Analyze the selected path to determine the roadmap type:
 - If path contains "Learning Path", "Explorer", "Track" → Create EDUCATIONAL roadmap (knowledge-focused)
@@ -99,7 +159,7 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
   },
   "phases": [
     {
-      "name": "Phase name",
+      "name": "Foundations & Core",
       "duration": "X weeks",
       "objective": "What they'll achieve in this phase",
       "skills": ["skill1", "skill2", "skill3", "skill4"],
@@ -111,18 +171,31 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
           "portfolioValue": "Why this project will impress employers"
         }
       ],
-      "resources": [
-        {
-          "title": "Resource name",
-          "type": "course/tutorial/book/tool/certification",
-          "provider": "Platform/author",
-          "url": "https://realurl.com",
-          "estimatedTime": "X hours",
-          "cost": "Free/Paid/Freemium",
-          "difficulty": "Beginner/Intermediate/Advanced",
-          "whyRecommended": "Why this specific resource fits their learning style and background"
-        }
-      ]
+      "resources": [USE THE CURATED FOUNDATION RESOURCES PROVIDED ABOVE - SELECT 5-8 MOST RELEVANT ONES]
+    },
+    {
+      "name": "Specialization Deep-Dive",
+      "duration": "X weeks", 
+      "objective": "Advanced concepts in chosen AI domain",
+      "skills": ["skill1", "skill2", "skill3"],
+      "projects": [PROJECT FOR THIS PHASE],
+      "resources": [GENERATE SPECIALIZED RESOURCES FOR THIS PHASE]
+    },
+    {
+      "name": "Practical Application",
+      "duration": "X weeks",
+      "objective": "Hands-on projects and real-world implementation", 
+      "skills": ["skill1", "skill2", "skill3"],
+      "projects": [PROJECT FOR THIS PHASE],
+      "resources": [GENERATE PRACTICAL RESOURCES FOR THIS PHASE]
+    },
+    {
+      "name": "Advanced & Research", 
+      "duration": "X weeks",
+      "objective": "Cutting-edge topics and research-oriented learning",
+      "skills": ["skill1", "skill2", "skill3"],
+      "projects": [PROJECT FOR THIS PHASE],
+      "resources": [GENERATE ADVANCED RESOURCES FOR THIS PHASE]
     }
   ],
   "nextSteps": [
@@ -135,8 +208,8 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
 REQUIREMENTS:
 - Build roadmap specifically for ${selectedRole}
 - Consider their coding level (${personaJson.coding}) and math skills (${personaJson.math})
-- 4-5 phases, each building logically on the previous
-- Use REAL courses from Coursera, edX, Udacity, YouTube, etc. with actual URLs
+- MUST use the provided curated resources for "Foundations & Core" phase
+- For other phases, use REAL courses from Coursera, edX, Udacity, YouTube, etc. with actual URLs
 - Include mix of free/paid resources based on budget constraints
 - Consider their ${personaJson.hours_per_week} hours/week availability
 - Match their timeline of ${personaJson.timeline_months} months
@@ -161,7 +234,7 @@ Return ONLY valid JSON, no explanations or markdown.`;
           messages: [
             { role: 'system', content: roadmapPrompt }
           ],
-          max_tokens: 2500,
+          max_tokens: 3000,
           temperature: 0.3,
         }),
       });
@@ -245,17 +318,17 @@ serve(async (req) => {
     console.log('Generating roadmap for role:', selectedRole);
     console.log('Persona:', personaJson);
 
-    // Generate roadmap with retry logic and validation
-    const roadmapData = await generateRoadmapWithRetry(personaJson, selectedRole, openAIApiKey);
+    // Generate roadmap with curated resources
+    const roadmapData = await generateRoadmapWithCuratedResources(personaJson, selectedRole, openAIApiKey);
 
-    console.log('Successfully generated and validated roadmap');
+    console.log('Successfully generated and validated roadmap with curated resources');
 
     return new Response(JSON.stringify({ roadmap: roadmapData }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error in ai-roadmap-generator function:', error);
+    console.error('Error in ai-roadmap-generator-v2 function:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
