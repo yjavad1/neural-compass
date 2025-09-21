@@ -413,9 +413,7 @@ const Index = () => {
   }
 
   return (
-    <div>
-      {/* Temporary test component - remove after validation */}
-      <ResourceCatalogTest />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
       <HeroSection onStartQuiz={handleStartQuiz} />
     </div>
   );

@@ -66,17 +66,36 @@ async function getCuratedResources(phase: string, userLevel: string, limit: numb
   try {
     console.log(`Querying curated resources for phase: ${phase}, level: ${userLevel}`);
     
-    // Query resources based on phase, user level, and foundational requirements
+    // Get phase ID first
+    const { data: phases, error: phaseError } = await supabase
+      .from('learning_phases')
+      .select('id')
+      .eq('name', phase)
+      .single();
+
+    if (phaseError || !phases) {
+      console.error('Error fetching phase:', phaseError);
+      // Fall back to getting foundational resources if phase not found
+      const { data: resources, error } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('is_core_foundational', true)
+        .order('quality_score', { ascending: false })
+        .limit(limit);
+      
+      console.log(`Found ${resources?.length || 0} foundational resources (fallback)`);
+      return resources || [];
+    }
+
+    // Query resources through the mapping table
     const { data: resources, error } = await supabase
       .from('resources')
       .select(`
         *,
-        resource_phase_mappings!inner(relevance_score),
-        learning_phases!inner(name)
+        resource_phase_mappings!inner(relevance_score)
       `)
-      .eq('learning_phases.name', 'Foundations & Core')
+      .eq('resource_phase_mappings.phase_id', phases.id)
       .eq('is_core_foundational', true)
-      .lte('difficulty_level', userLevel === 'beginner' ? 'beginner' : userLevel === 'intermediate' ? 'intermediate' : 'advanced')
       .order('quality_score', { ascending: false })
       .limit(limit);
 
@@ -171,7 +190,22 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
           "portfolioValue": "Why this project will impress employers"
         }
       ],
-      "resources": [USE THE CURATED FOUNDATION RESOURCES PROVIDED ABOVE - SELECT 5-8 MOST RELEVANT ONES]
+      "resources": [
+        CRITICAL: Use ONLY the curated foundation resources provided above.
+        Each resource MUST be a JSON object with this EXACT format:
+        {
+          "title": "string",
+          "type": "string", 
+          "provider": "string",
+          "url": "string",
+          "estimatedTime": "string",
+          "cost": "string",
+          "difficulty": "string",
+          "whyRecommended": "string"
+        }
+        DO NOT return resources as strings. Return as objects only.
+        Select 5-8 most relevant resources from the curated list.
+      ]
     },
     {
       "name": "Specialization Deep-Dive",
@@ -179,7 +213,19 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
       "objective": "Advanced concepts in chosen AI domain",
       "skills": ["skill1", "skill2", "skill3"],
       "projects": [PROJECT FOR THIS PHASE],
-      "resources": [GENERATE SPECIALIZED RESOURCES FOR THIS PHASE]
+      "resources": [
+        GENERATE 3-5 specialized resources as JSON objects with this EXACT format:
+        {
+          "title": "Course/Resource Name",
+          "type": "course|tutorial|book|tool",
+          "provider": "Provider Name", 
+          "url": "https://actual-url.com",
+          "estimatedTime": "X hours|weeks",
+          "cost": "Free|Paid|Freemium",
+          "difficulty": "Beginner|Intermediate|Advanced",
+          "whyRecommended": "Brief explanation"
+        }
+      ]
     },
     {
       "name": "Practical Application",
@@ -187,7 +233,19 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
       "objective": "Hands-on projects and real-world implementation", 
       "skills": ["skill1", "skill2", "skill3"],
       "projects": [PROJECT FOR THIS PHASE],
-      "resources": [GENERATE PRACTICAL RESOURCES FOR THIS PHASE]
+      "resources": [
+        GENERATE 3-5 practical resources as JSON objects with this EXACT format:
+        {
+          "title": "Course/Resource Name",
+          "type": "course|tutorial|book|tool", 
+          "provider": "Provider Name",
+          "url": "https://actual-url.com",
+          "estimatedTime": "X hours|weeks",
+          "cost": "Free|Paid|Freemium",
+          "difficulty": "Beginner|Intermediate|Advanced",
+          "whyRecommended": "Brief explanation"
+        }
+      ]
     },
     {
       "name": "Advanced & Research", 
@@ -195,7 +253,19 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
       "objective": "Cutting-edge topics and research-oriented learning",
       "skills": ["skill1", "skill2", "skill3"],
       "projects": [PROJECT FOR THIS PHASE],
-      "resources": [GENERATE ADVANCED RESOURCES FOR THIS PHASE]
+      "resources": [
+        GENERATE 3-5 advanced resources as JSON objects with this EXACT format:
+        {
+          "title": "Course/Resource Name",
+          "type": "course|tutorial|book|tool",
+          "provider": "Provider Name", 
+          "url": "https://actual-url.com",
+          "estimatedTime": "X hours|weeks",
+          "cost": "Free|Paid|Freemium",
+          "difficulty": "Beginner|Intermediate|Advanced",
+          "whyRecommended": "Brief explanation"
+        }
+      ]
     }
   ],
   "nextSteps": [
