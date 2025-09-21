@@ -87,7 +87,7 @@ async function getCuratedResources(phase: string, userLevel: string, limit: numb
       return resources || [];
     }
 
-    // Query resources through the mapping table
+    // Query resources through the mapping table - remove core foundational filter for non-foundation phases
     const { data: resources, error } = await supabase
       .from('resources')
       .select(`
@@ -95,8 +95,9 @@ async function getCuratedResources(phase: string, userLevel: string, limit: numb
         resource_phase_mappings!inner(relevance_score)
       `)
       .eq('resource_phase_mappings.phase_id', phases.id)
-      .eq('is_core_foundational', true)
+      .in('difficulty_level', userLevel === 'beginner' ? ['beginner'] : ['beginner', 'intermediate', 'advanced'])
       .order('quality_score', { ascending: false })
+      .order('resource_phase_mappings.relevance_score', { ascending: false })
       .limit(limit);
 
     if (error) {
@@ -110,6 +111,19 @@ async function getCuratedResources(phase: string, userLevel: string, limit: numb
     console.error('Exception in getCuratedResources:', error);
     return [];
   }
+}
+
+// Function to get curated resources for all phases
+async function getAllPhaseCuratedResources(userLevel: string) {
+  const phases = ['Foundations & Core', 'Specialization Deep-Dive', 'Practical Application', 'Advanced & Research'];
+  const allResources = {};
+  
+  for (const phase of phases) {
+    const resources = await getCuratedResources(phase, userLevel, 6);
+    allResources[phase] = resources.map(convertDbResourceToRoadmapResource);
+  }
+  
+  return allResources;
 }
 
 // Function to convert database resource to roadmap resource format
@@ -129,14 +143,15 @@ function convertDbResourceToRoadmapResource(dbResource: any): any {
 }
 
 async function generateRoadmapWithCuratedResources(personaJson: any, selectedRole: string, openAIApiKey: string, maxRetries = 3): Promise<any> {
-  // Get curated resources for foundations phase
+  // Get curated resources for all phases
   const userLevel = personaJson.coding === 'none' ? 'beginner' : 
                    personaJson.coding === 'basic' ? 'intermediate' : 'advanced';
   
-  const curatedResources = await getCuratedResources('Foundations & Core', userLevel);
-  const roadmapResources = curatedResources.map(convertDbResourceToRoadmapResource);
+  const allPhaseResources = await getAllPhaseCuratedResources(userLevel);
   
-  console.log(`Using ${roadmapResources.length} curated resources for roadmap generation`);
+  console.log(`Using curated resources for all phases:`, Object.keys(allPhaseResources).map(phase => 
+    `${phase}: ${allPhaseResources[phase].length} resources`
+  ).join(', '));
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     console.log(`Roadmap generation attempt ${attempt}/${maxRetries}`);
@@ -149,8 +164,8 @@ ${JSON.stringify(personaJson, null, 2)}
 
 SELECTED PATH: ${selectedRole}
 
-CURATED FOUNDATION RESOURCES (use these for Foundations & Core phase):
-${JSON.stringify(roadmapResources, null, 2)}
+CURATED RESOURCES FOR ALL PHASES (use these resources only):
+${JSON.stringify(allPhaseResources, null, 2)}
 
 CRITICAL: Analyze the selected path to determine the roadmap type:
 - If path contains "Learning Path", "Explorer", "Track" → Create EDUCATIONAL roadmap (knowledge-focused)
@@ -191,7 +206,7 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
         }
       ],
       "resources": [
-        CRITICAL: Use ONLY the curated foundation resources provided above.
+        CRITICAL: Use ONLY the curated "Foundations & Core" resources provided above.
         Each resource MUST be a JSON object with this EXACT format:
         {
           "title": "string",
@@ -204,7 +219,7 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
           "whyRecommended": "string"
         }
         DO NOT return resources as strings. Return as objects only.
-        Select 5-8 most relevant resources from the curated list.
+        Select 5-8 most relevant resources from the curated "Foundations & Core" list.
       ]
     },
     {
@@ -214,17 +229,20 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
       "skills": ["skill1", "skill2", "skill3"],
       "projects": [PROJECT FOR THIS PHASE],
       "resources": [
-        GENERATE 3-5 specialized resources as JSON objects with this EXACT format:
+        CRITICAL: Use ONLY the curated "Specialization Deep-Dive" resources provided above.
+        If no curated resources exist for this phase, use the "Foundations & Core" resources.
+        Each resource MUST be a JSON object with this EXACT format:
         {
           "title": "Course/Resource Name",
           "type": "course|tutorial|book|tool",
           "provider": "Provider Name", 
-          "url": "https://actual-url.com",
+          "url": "verified URL from curated list",
           "estimatedTime": "X hours|weeks",
           "cost": "Free|Paid|Freemium",
           "difficulty": "Beginner|Intermediate|Advanced",
           "whyRecommended": "Brief explanation"
         }
+        Select 3-5 most relevant resources from the curated lists only.
       ]
     },
     {
@@ -234,17 +252,20 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
       "skills": ["skill1", "skill2", "skill3"],
       "projects": [PROJECT FOR THIS PHASE],
       "resources": [
-        GENERATE 3-5 practical resources as JSON objects with this EXACT format:
+        CRITICAL: Use ONLY the curated "Practical Application" resources provided above.
+        If no curated resources exist for this phase, use the "Foundations & Core" resources.
+        Each resource MUST be a JSON object with this EXACT format:
         {
           "title": "Course/Resource Name",
           "type": "course|tutorial|book|tool", 
           "provider": "Provider Name",
-          "url": "https://actual-url.com",
+          "url": "verified URL from curated list",
           "estimatedTime": "X hours|weeks",
           "cost": "Free|Paid|Freemium",
           "difficulty": "Beginner|Intermediate|Advanced",
           "whyRecommended": "Brief explanation"
         }
+        Select 3-5 most relevant resources from the curated lists only.
       ]
     },
     {
@@ -254,17 +275,20 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
       "skills": ["skill1", "skill2", "skill3"],
       "projects": [PROJECT FOR THIS PHASE],
       "resources": [
-        GENERATE 3-5 advanced resources as JSON objects with this EXACT format:
+        CRITICAL: Use ONLY the curated "Advanced & Research" resources provided above.
+        If no curated resources exist for this phase, use the "Foundations & Core" resources.
+        Each resource MUST be a JSON object with this EXACT format:
         {
           "title": "Course/Resource Name",
           "type": "course|tutorial|book|tool",
           "provider": "Provider Name", 
-          "url": "https://actual-url.com",
+          "url": "verified URL from curated list",
           "estimatedTime": "X hours|weeks",
           "cost": "Free|Paid|Freemium",
           "difficulty": "Beginner|Intermediate|Advanced",
           "whyRecommended": "Brief explanation"
         }
+        Select 3-5 most relevant resources from the curated lists only.
       ]
     }
   ],
@@ -278,12 +302,14 @@ Generate a roadmap with this EXACT JSON structure (must be valid JSON):
 REQUIREMENTS:
 - Build roadmap specifically for ${selectedRole}
 - Consider their coding level (${personaJson.coding}) and math skills (${personaJson.math})
-- MUST use the provided curated resources for "Foundations & Core" phase
-- For other phases, use REAL courses from Coursera, edX, Udacity, YouTube, etc. with actual URLs
+- CRITICAL: ONLY use the provided curated resources for ALL phases - DO NOT generate new URLs
+- Use resources from the curated lists above - never create new URLs or resources
+- If a phase has no curated resources, use resources from "Foundations & Core" phase
 - Include mix of free/paid resources based on budget constraints
 - Consider their ${personaJson.hours_per_week} hours/week availability
 - Match their timeline of ${personaJson.timeline_months} months
 - Factor in constraints: ${personaJson.constraints?.join(', ') || 'none'}
+- NEVER GENERATE FAKE URLs - only use the URLs provided in the curated resource lists
 
 ROADMAP FOCUS GUIDELINES:
 - **EDUCATIONAL roadmaps**: Focus on understanding concepts, theory, and broad knowledge. Projects are exploratory. Salary info can be "Knowledge-focused path" or focus on potential applications.
