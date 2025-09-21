@@ -5,6 +5,7 @@ import { RoleSelectionSection } from "@/components/RoleSelectionSection";
 import { InteractiveRoadmap } from "@/components/InteractiveRoadmap";
 import { EnhancedRoadmapSection } from "@/components/EnhancedRoadmapSection";
 import { LoadingTransition } from "@/components/LoadingTransition";
+import { ResourceCatalogTest } from "@/components/ResourceCatalogTest";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -411,7 +412,13 @@ const Index = () => {
     );
   }
 
-  return <HeroSection onStartQuiz={handleStartQuiz} />;
+  return (
+    <div>
+      {/* Temporary test component - remove after validation */}
+      <ResourceCatalogTest />
+      <HeroSection onStartQuiz={handleStartQuiz} />
+    </div>
+  );
 };
 
 export default Index;
