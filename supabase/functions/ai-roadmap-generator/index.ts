@@ -148,12 +148,15 @@ async function getCandidatesByPhase(phase: string, userLevel: string, limit: num
       .eq('resource_phase_mappings.phase_id', phases.id)
       .in('difficulty_level', userLevel === 'beginner' ? ['beginner'] : ['beginner', 'intermediate', 'advanced'])
       .order('quality_score', { ascending: false })
+      .order('relevance_score', { ascending: false, referencedTable: 'resource_phase_mappings' })
       .limit(limit);
 
     if (error) {
-      console.error('Error fetching candidates:', error);
+      console.error(`❌ Error fetching candidates for phase ${phase}:`, error);
       return [];
     }
+
+    console.log(`📊 Found ${resources?.length || 0} candidates for phase: ${phase}, level: ${userLevel}`);
 
     return resources?.map(r => ({
       id: r.id,
@@ -331,12 +334,18 @@ async function selectAllResourcesBatch(phases: any[], personaJson: any, openAIAp
                        personaJson.coding === 'advanced' ? 'intermediate' : 'beginner';
       
       // Pre-fetch candidates for all phases in parallel
-      const candidatePromises = phases.map(async (phase) => ({
-        phase: phase.name,
-        candidates: await getCandidatesByPhase(phase.name, userLevel, 4) // Reduced from 8 to 4
-      }));
+      const candidatePromises = phases.map(async (phase) => {
+        const candidates = await getCandidatesByPhase(phase.name, userLevel, 4);
+        console.log(`📊 Phase "${phase.name}": ${candidates.length} candidates found`);
+        return {
+          phase: phase.name,
+          candidates: candidates
+        };
+      });
       
       const allCandidates = await Promise.all(candidatePromises);
+      
+      console.log(`🎯 Total candidates across all phases: ${allCandidates.reduce((sum, p) => sum + p.candidates.length, 0)}`);
       
       // Build single batch payload
       const batchPayload = {
@@ -377,12 +386,21 @@ Never invent IDs - only use IDs from the candidates array.`
 
       const data = await response.json();
       const text = data.choices[0]?.message?.content ?? "{}";
-      const result = JSON.parse(text);
       
-      return result.phases || {};
+      console.log(`🤖 OpenAI batch response (first 200 chars): ${text.substring(0, 200)}...`);
+      
+      const result = JSON.parse(text);
+      const phases = result.phases || {};
+      
+      console.log(`✅ Batch selection results: ${Object.keys(phases).length} phases processed`);
+      Object.entries(phases).forEach(([phase, ids]: [string, any]) => {
+        console.log(`📌 Phase "${phase}": Selected ${Array.isArray(ids) ? ids.length : 0} resources`);
+      });
+      
+      return phases;
     } catch (e) {
-      console.warn('Batch resource selection failed, using fallback strategy');
-      // Fallback: return empty object to trigger curated resources
+      console.error('❌ Batch resource selection failed:', e);
+      console.warn('🔄 Using fallback strategy - will trigger curated resources');
       return {};
     }
   };
@@ -653,11 +671,12 @@ async function attachResourceIdsToRoadmap(
       ids = batchResults[phaseName];
       console.log(`✨ Used batch result for ${phaseName}: ${ids.length} resources`);
     } else {
-      console.log(`🔄 Fallback to curated resources for ${phaseName}`);
+      console.log(`🔄 Fallback to curated resources for ${phaseName} (available: ${(curatedFallbackByPhase[phaseName] || []).length})`);
       // Direct curated fallback (skip individual AI calls)
       ids = (curatedFallbackByPhase[phaseName] || [])
         .slice(0, 3)
         .map((r: any) => r.id);
+      console.log(`📋 Fallback selected ${ids.length} resources for ${phaseName}`);
     }
 
     // Ensure minimum resources with curated padding if needed
