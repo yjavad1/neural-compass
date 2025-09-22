@@ -124,14 +124,21 @@ const Index = () => {
         throw new Error(`Roadmap generation failed: ${roadmapError.message}`);
       }
 
-      if (!roadmapData || !roadmapData.roadmap) {
+      // Handle both response shapes: direct roadmap or { roadmap: ... }
+      let actualRoadmap;
+      if (roadmapData && roadmapData.roadmap) {
+        actualRoadmap = roadmapData.roadmap;
+      } else if (roadmapData && roadmapData.role) {
+        // Direct roadmap response
+        actualRoadmap = roadmapData;
+      } else {
         console.error('❌ Invalid roadmap data received:', roadmapData);
         throw new Error('Invalid roadmap response');
       }
 
       console.log('✅ AI Roadmap generation successful!');
       // Sanitize the roadmap data to handle malformed structures
-      const sanitizedRoadmap = sanitizeRoadmapData(roadmapData.roadmap);
+      const sanitizedRoadmap = sanitizeRoadmapData(actualRoadmap);
       console.log('🧹 Sanitized roadmap data:', sanitizedRoadmap);
       setRoadmapData(sanitizedRoadmap);
       setIsProcessing(false);

@@ -224,8 +224,11 @@ CRITICAL REQUIREMENTS:
 7. Give realistic timeline estimates based on their available hours`;
 
   try {
+    console.log("⏰ Starting LLM generation...");
+    const startTime = Date.now();
+    
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -236,15 +239,19 @@ CRITICAL REQUIREMENTS:
       signal: controller.signal,
       body: JSON.stringify({
         model: "gpt-4o-mini", // Use faster model
-        max_tokens: 2500, // Reduced token limit
+        max_tokens: 1600, // Further reduced for speed
         temperature: 0.3,
         messages: [
-          { role: "user", content: detailedPrompt }
+          { role: "system", content: "You are a concise AI career advisor. Generate only the requested JSON structure with no extra text." },
+          { role: "user", content: detailedPrompt + "\n\nIMPORTANT: Be concise but comprehensive. Focus on quality over quantity in descriptions." }
         ],
       }),
     });
     
     clearTimeout(timeoutId);
+    
+    const duration = Date.now() - startTime;
+    console.log(`⏱️ LLM call completed in ${duration}ms`);
 
     if (!response.ok) {
       const error = await response.json();
@@ -456,7 +463,15 @@ serve(async (req) => {
   }
 
   try {
-    const { personaJson, selectedRole } = await req.json();
+    const requestBody = await req.json();
+    
+    // Backward-compatible payload parsing
+    const personaJson = requestBody.personaJson || requestBody.profileData || requestBody.persona;
+    const selectedRole = requestBody.selectedRole || requestBody.role;
+    
+    if (!personaJson || !selectedRole) {
+      throw new Error('Missing required fields: personaJson and selectedRole');
+    }
     
     console.log("🚀 Starting LLM-first roadmap generation");
     console.log("Role:", selectedRole);
