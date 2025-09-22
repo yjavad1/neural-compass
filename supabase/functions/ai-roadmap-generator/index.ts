@@ -237,7 +237,7 @@ async function getCuratedResources(phase: string, userLevel: string, limit: numb
       .eq('resource_phase_mappings.phase_id', phases.id)
       .in('difficulty_level', userLevel === 'beginner' ? ['beginner'] : ['beginner', 'intermediate', 'advanced'])
       .order('quality_score', { ascending: false })
-      .order('resource_phase_mappings.relevance_score', { ascending: false })
+      .order('relevance_score', { ascending: false, referencedTable: 'resource_phase_mappings' })
       .limit(limit);
 
     if (error) {
@@ -528,6 +528,9 @@ REQUIREMENTS:
 - Adjust difficulty for their coding level: ${personaJson.coding}
 - Project sizes: S=1-2 weeks, M=3-4 weeks, L=5+ weeks
 - Total weeks should align with their timeline preference
+- Be SPECIFIC with project titles and descriptions - no generic names
+- All project descriptions must be concrete and actionable
+- Skills must be specific technical skills, not general concepts
 
 Return ONLY valid JSON, no explanations or markdown.`;
 
@@ -752,10 +755,10 @@ async function generateRoadmapWithCuratedResources(personaJson: any, selectedRol
       timeline: `${finalRoadmap.timeline_weeks?.mid || 12} weeks`,
       hiringOutlook: 'Good',
       justification: {
-        whyThisPath: `This ${selectedRole} path matches your ${personaJson.coding} coding background and ${personaJson.timeline_months}-month timeline.`,
-        strengths: ['Quick learner', 'Technical aptitude', 'Growth mindset'],
-        alternativePaths: ['Data Scientist', 'Software Engineer'],
-        whyNotAlternatives: 'Your specific interests and skills make this path optimal.'
+        whyThisPath: `${selectedRole} aligns perfectly with your ${personaJson.background?.join(', ')} background, ${personaJson.coding} coding experience, and ${personaJson.interests?.join(', ')} interests. With ${personaJson.hours_per_week} hours per week, you can complete this in ${personaJson.timeline_months} months.`,
+        strengths: personaJson.background?.includes('creative') ? ['Creative problem-solving', 'Design thinking', 'User-focused approach'] : ['Analytical thinking', 'Technical aptitude', 'Growth mindset'],
+        alternativePaths: personaJson.interests?.includes('analytics') ? ['Data Scientist', 'Business Analyst'] : ['Software Engineer', 'Product Manager'],
+        whyNotAlternatives: `Your specific combination of ${personaJson.goal} goals and ${personaJson.constraints?.join(', ')} constraints make ${selectedRole} the optimal choice.`
       },
       salary: {
         entry: '$70,000 - $90,000',
