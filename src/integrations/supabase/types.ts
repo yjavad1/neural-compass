@@ -170,6 +170,30 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          created_at: string | null
+          id: string
+          identifier: string
+          request_count: number | null
+          window_start: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          identifier: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          identifier?: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       resource_categories: {
         Row: {
           created_at: string

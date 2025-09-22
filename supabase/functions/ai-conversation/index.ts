@@ -124,12 +124,61 @@ const initialMessage = `Hi! I'm your AI career advisor, and I'm excited to help 
 
 What's your first name? I'd love to personalize our conversation and make this journey feel more personal.`;
 
+// Rate limiting function
+async function checkRateLimit(identifier: string, maxRequests: number = 10, windowMinutes: number = 10): Promise<boolean> {
+  const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
+  
+  // Clean old records
+  await supabase
+    .from('rate_limits')
+    .delete()
+    .lt('window_start', windowStart.toISOString());
+  
+  // Check current count
+  const { data: existing } = await supabase
+    .from('rate_limits')
+    .select('request_count')
+    .eq('identifier', identifier)
+    .gte('window_start', windowStart.toISOString())
+    .maybeSingle();
+  
+  if (existing && existing.request_count >= maxRequests) {
+    return false;
+  }
+  
+  // Update or insert rate limit record
+  if (existing) {
+    await supabase
+      .from('rate_limits')
+      .update({ request_count: existing.request_count + 1 })
+      .eq('identifier', identifier)
+      .gte('window_start', windowStart.toISOString());
+  } else {
+    await supabase
+      .from('rate_limits')
+      .insert({ identifier, request_count: 1 });
+  }
+  
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limiting based on IP
+    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const rateLimitAllowed = await checkRateLimit(clientIP, 20, 10); // 20 requests per 10 minutes
+    
+    if (!rateLimitAllowed) {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { message, sessionId, action } = await req.json();
     
     if (action === 'start') {
