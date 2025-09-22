@@ -292,15 +292,15 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <p className="text-sm text-muted-foreground">Entry Level</p>
-                      <p className="font-semibold">{roadmapData.salary.entry}</p>
+                      <p className="font-semibold">{roadmapData.salary?.entry || '$60,000-80,000'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Mid Level</p>
-                      <p className="font-semibold">{roadmapData.salary.mid}</p>
+                      <p className="font-semibold">{roadmapData.salary?.mid || '$80,000-120,000'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Senior Level</p>
-                      <p className="font-semibold">{roadmapData.salary.senior}</p>
+                      <p className="font-semibold">{roadmapData.salary?.senior || '$120,000+'}</p>
                     </div>
                   </div>
                 </div>
@@ -353,14 +353,14 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                 <div>
                   <h3 className="font-semibold mb-3">Personalized Analysis</h3>
                   <p className="text-muted-foreground leading-relaxed">
-                    {roadmapData.justification.whyThisPath}
+                    {roadmapData.justification?.whyThisPath || 'This path aligns with your background and goals.'}
                   </p>
                 </div>
 
                 <div>
                   <h3 className="font-semibold mb-3">Your Key Strengths</h3>
                   <div className="grid gap-2">
-                    {roadmapData.justification.strengths.map((strength, index) => (
+                    {(roadmapData.justification?.strengths || []).map((strength, index) => (
                       <div key={index} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg">
                         <CheckCircle className="text-green-600" size={16} />
                         <span className="text-green-800">{strength}</span>
@@ -372,7 +372,7 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                 <div>
                   <h3 className="font-semibold mb-3">Alternative Paths Considered</h3>
                   <div className="grid gap-2 mb-3">
-                    {roadmapData.justification.alternativePaths.map((alt, index) => (
+                    {(roadmapData.justification?.alternativePaths || []).map((alt, index) => (
                       <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded-lg">
                         <Target size={16} className="text-muted-foreground" />
                         <span>{alt}</span>
@@ -380,7 +380,7 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                     ))}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    <strong>Why your chosen path is optimal:</strong> {roadmapData.justification.whyNotAlternatives}
+                    <strong>Why your chosen path is optimal:</strong> {roadmapData.justification?.whyNotAlternatives || 'This path offers the best balance of learning and opportunity.'}
                   </p>
                 </div>
               </CardContent>
@@ -440,10 +440,10 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                       <div>
                         <h4 className="font-semibold mb-3 flex items-center gap-2">
                           <Star size={16} className="text-primary" />
-                          Key Skills ({phase.skills.length})
+                          Key Skills ({(phase.skills || []).length})
                         </h4>
                         <div className="grid grid-cols-1 gap-2">
-                          {phase.skills.map((skill, skillIndex) => (
+                          {(phase.skills || []).map((skill, skillIndex) => (
                             <div key={skillIndex} className="text-sm flex items-center gap-2 p-2 bg-primary/5 rounded">
                               <div className="w-2 h-2 bg-primary rounded-full" />
                               {skill}
@@ -458,8 +458,8 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                           <Code size={16} className="text-secondary" />
                           Portfolio Projects
                         </h4>
-                         <div className="space-y-3">
-                           {phase.projects.map((project, projectIndex) => (
+                          <div className="space-y-3">
+                            {(phase.projects || []).map((project, projectIndex) => (
                              <div key={projectIndex} className="p-3 bg-secondary/5 rounded-lg border border-secondary/20">
                                <div className="flex items-start justify-between mb-2">
                                  <h5 className="font-medium">{project.title}</h5>
@@ -477,13 +477,13 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                                  </Button>
                                </div>
                                <p className="text-sm text-muted-foreground mb-2">{project.description}</p>
-                               <div className="flex flex-wrap gap-1 mb-2">
-                                 {project.keySkills.map((skill, skillIdx) => (
-                                   <Badge key={skillIdx} variant="secondary" className="text-xs">
-                                     {skill}
-                                   </Badge>
-                                 ))}
-                               </div>
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {(project.keySkills || []).map((skill, skillIdx) => (
+                                    <Badge key={skillIdx} variant="secondary" className="text-xs">
+                                      {skill}
+                                    </Badge>
+                                  ))}
+                                </div>
                                <p className="text-xs text-green-600 font-medium">{project.portfolioValue}</p>
                              </div>
                            ))}
@@ -495,10 +495,10 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                     <div>
                       <h4 className="font-semibold mb-3 flex items-center gap-2">
                         <BookOpen size={16} className="text-purple-600" />
-                        Curated Resources ({phase.resources.length})
+                        Curated Resources ({(phase.resources || []).length})
                       </h4>
-                       <div className="space-y-3">
-                         {phase.resources.map((resource, resourceIndex) => (
+                        <div className="space-y-3">
+                          {(phase.resources || []).map((resource, resourceIndex) => (
                            <div key={resourceIndex} className="p-3 border rounded-lg hover:shadow-md transition-all">
                              <div className="flex items-start justify-between mb-2">
                                <div className="flex items-center gap-2 flex-1">
@@ -560,7 +560,7 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 mb-6">
-                  {roadmapData.nextSteps.map((step, index) => (
+                  {(roadmapData.nextSteps || []).map((step, index) => (
                     <div key={index} className="flex items-center gap-4 p-4 rounded-lg bg-background/80 border border-primary/20">
                       <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-semibold">
                         {index + 1}

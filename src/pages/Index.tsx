@@ -8,6 +8,7 @@ import { LoadingTransition } from "@/components/LoadingTransition";
 import { ResourceCatalogTest } from "@/components/ResourceCatalogTest";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeRoadmapData } from "@/utils/roadmapDataSanitizer";
 
 type AppState = "hero" | "quiz" | "role-selection" | "loading" | "roadmap";
 type LoadingState = "role-analysis" | "roadmap-generation" | null;
@@ -129,7 +130,10 @@ const Index = () => {
       }
 
       console.log('✅ AI Roadmap generation successful!');
-      setRoadmapData(roadmapData.roadmap);
+      // Sanitize the roadmap data to handle malformed structures
+      const sanitizedRoadmap = sanitizeRoadmapData(roadmapData.roadmap);
+      console.log('🧹 Sanitized roadmap data:', sanitizedRoadmap);
+      setRoadmapData(sanitizedRoadmap);
       setIsProcessing(false);
       setLoadingState(null);
       setAppState("roadmap");
