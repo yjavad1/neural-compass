@@ -392,7 +392,7 @@ export type Database = {
           role_current: string | null
           technical_background: string | null
           updated_at: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           ai_interests?: string[] | null
@@ -409,7 +409,7 @@ export type Database = {
           role_current?: string | null
           technical_background?: string | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           ai_interests?: string[] | null
@@ -426,7 +426,7 @@ export type Database = {
           role_current?: string | null
           technical_background?: string | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
