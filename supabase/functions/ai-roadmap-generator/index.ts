@@ -68,6 +68,12 @@ INTERESTS: ${personaJson.interests?.join(', ') || 'AI/ML'}
 TIME: ${personaJson.hours_per_week || 10}hrs/week, ${personaJson.timeline_months || 6} months
 CONSTRAINTS: ${personaJson.constraints?.join(', ') || 'None'}
 
+RESOURCE URL REQUIREMENTS - CRITICAL:
+- Use REAL, verified URLs from major educational platforms
+- Examples: https://www.coursera.org/learn/machine-learning, https://developers.google.com/machine-learning/crash-course
+- For searches use: https://provider.com/search?q=topic
+- NEVER use placeholder URLs like https://example.com
+
 Generate PERSONALIZED content based on their specific background. Return valid JSON only:
 
 {
@@ -94,8 +100,8 @@ Generate PERSONALIZED content based on their specific background. Return valid J
       "skills": ["SKILL_1", "SKILL_2", "SKILL_3", "SKILL_4"],
       "projects": [{"title": "PROJECT_FOR_THEIR_INTERESTS", "size": "S", "brief": "WHAT_THEYLL_BUILD"}],
       "resources": [
-        {"title": "REAL_COURSE_NAME", "type": "Course", "provider": "REAL_PROVIDER", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Free/Paid", "difficulty": "Beginner", "whyRecommended": "PERSONALIZED_REASON"},
-        {"title": "ANOTHER_RESOURCE", "type": "Tutorial", "provider": "PROVIDER", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Free", "difficulty": "Beginner", "whyRecommended": "WHY_FOR_THEM"}
+        {"title": "Machine Learning Crash Course", "type": "course", "provider": "Google", "url": "https://developers.google.com/machine-learning/crash-course", "estimatedTime": "15 hours", "cost": "Free", "difficulty": "Beginner", "whyRecommended": "Google's free ML course with TensorFlow"},
+        {"title": "Introduction to Python for Data Science", "type": "course", "provider": "Coursera", "url": "https://www.coursera.org/learn/python-data-analysis", "estimatedTime": "25 hours", "cost": "Free", "difficulty": "Beginner", "whyRecommended": "Essential Python skills for AI development"}
       ]
     },
     {
@@ -104,7 +110,7 @@ Generate PERSONALIZED content based on their specific background. Return valid J
       "objective": "INTERMEDIATE_GOAL",
       "skills": ["ADV_SKILL_1", "ADV_SKILL_2", "ADV_SKILL_3"],
       "projects": [{"title": "INTERMEDIATE_PROJECT", "size": "M", "brief": "DESCRIPTION"}],
-      "resources": [{"title": "ADVANCED_COURSE", "type": "Course", "provider": "PROVIDER", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Paid", "difficulty": "Intermediate", "whyRecommended": "REASONING"}]
+      "resources": [{"title": "Deep Learning Specialization", "type": "course", "provider": "Coursera", "url": "https://www.coursera.org/specializations/deep-learning", "estimatedTime": "120 hours", "cost": "Paid", "difficulty": "Intermediate", "whyRecommended": "Comprehensive deep learning by Andrew Ng"}]
     },
     {
       "name": "Practical Application",
@@ -112,7 +118,7 @@ Generate PERSONALIZED content based on their specific background. Return valid J
       "objective": "PORTFOLIO_BUILDING",
       "skills": ["PRACTICAL_1", "PRACTICAL_2", "PRACTICAL_3"],
       "projects": [{"title": "PORTFOLIO_PROJECT", "size": "L", "brief": "SUBSTANTIAL_PROJECT"}],
-      "resources": [{"title": "PRACTICAL_RESOURCE", "type": "Tutorial", "provider": "PROVIDER", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Free", "difficulty": "Intermediate", "whyRecommended": "PRACTICAL_SKILLS"}]
+      "resources": [{"title": "Kaggle Learn", "type": "tutorial", "provider": "Kaggle", "url": "https://www.kaggle.com/learn", "estimatedTime": "40 hours", "cost": "Free", "difficulty": "Intermediate", "whyRecommended": "Hands-on data science competitions and projects"}]
     },
     {
       "name": "Advanced & Research",
@@ -120,7 +126,7 @@ Generate PERSONALIZED content based on their specific background. Return valid J
       "objective": "ADVANCED_EXPERTISE",
       "skills": ["EXPERT_1", "EXPERT_2", "EXPERT_3"],
       "projects": [{"title": "CAPSTONE_PROJECT", "size": "L", "brief": "COMPLEX_PROJECT"}],
-      "resources": [{"title": "RESEARCH_RESOURCE", "type": "Research", "provider": "JOURNAL", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Free", "difficulty": "Advanced", "whyRecommended": "EXPERTISE_BUILDING"}]
+      "resources": [{"title": "Papers With Code", "type": "tutorial", "provider": "Papers With Code", "url": "https://paperswithcode.com/", "estimatedTime": "Self-paced", "cost": "Free", "difficulty": "Advanced", "whyRecommended": "Latest AI research with implementation code"}]
     }
   ],
   "nextSteps": ["ACTION_1", "ACTION_2", "ACTION_3"]

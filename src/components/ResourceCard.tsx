@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, BookOpen, Video, Code, Users, Star } from "lucide-react";
+import { ExternalLink, BookOpen, Video, Code, Users, Star, Search } from "lucide-react";
+import { useState } from "react";
 
 interface Resource {
   title: string;
@@ -64,6 +65,51 @@ const getDifficultyColor = (difficulty: Resource['difficulty']) => {
   }
 };
 
+// Component for smart resource button with error handling
+const ResourceButton = ({ url, provider }: { url: string; provider: string }) => {
+  const [linkFailed, setLinkFailed] = useState(false);
+  
+  const isSearchUrl = url.includes('search') || url.includes('results');
+  
+  const handleClick = (e: React.MouseEvent) => {
+    // If it's a search URL, mark as search instead of direct link
+    if (isSearchUrl && !linkFailed) {
+      e.preventDefault();
+      setLinkFailed(true);
+      // Still open the search URL
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+  
+  return (
+    <Button 
+      size="sm" 
+      variant={linkFailed || isSearchUrl ? "secondary" : "outline"} 
+      className="h-8" 
+      asChild
+    >
+      <a 
+        href={url} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        onClick={handleClick}
+      >
+        {linkFailed || isSearchUrl ? (
+          <>
+            <Search size={12} className="mr-1" />
+            Search
+          </>
+        ) : (
+          <>
+            <ExternalLink size={12} className="mr-1" />
+            View
+          </>
+        )}
+      </a>
+    </Button>
+  );
+};
+
 export const ResourceCard = ({ resources }: ResourceCardProps) => {
   const groupedResources = resources.reduce((acc, resource) => {
     if (!acc[resource.type]) {
@@ -119,12 +165,7 @@ export const ResourceCard = ({ resources }: ResourceCardProps) => {
                       
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">by {resource.provider}</span>
-                        <Button size="sm" variant="outline" className="h-8" asChild>
-                          <a href={resource.url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink size={12} className="mr-1" />
-                            View
-                          </a>
-                        </Button>
+                        <ResourceButton url={resource.url} provider={resource.provider} />
                       </div>
                     </div>
                   </div>

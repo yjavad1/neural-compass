@@ -115,15 +115,21 @@ const sanitizePhase = (phase: any): Phase => {
   };
 };
 
+// Import resource transformer
+import { transformPhaseResources } from './resourceTransformer';
+
 // Main sanitization function
 export const sanitizeRoadmapData = (data: any): EnhancedRoadmapData => {
   if (!data || typeof data !== 'object') {
     throw new Error('Invalid roadmap data provided');
   }
 
-  const phases = Array.isArray(data.phases) 
+  // Transform and sanitize phases
+  const rawPhases = Array.isArray(data.phases) 
     ? data.phases.map(sanitizePhase)
     : [];
+  
+  const phases = transformPhaseResources(rawPhases);
 
   const nextSteps = Array.isArray(data.nextSteps)
     ? data.nextSteps.filter(step => typeof step === 'string' && step.length > 0)
