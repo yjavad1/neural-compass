@@ -1,22 +1,44 @@
+import { supabase } from '@/integrations/supabase/client';
+
 /**
  * Session security utilities for managing secure access to conversation data
- * The session token is passed to edge functions which handle RLS context setting
+ * The session token ensures users can only access their own conversation data
  */
 
 /**
- * Session tokens are managed on the frontend and passed to edge functions
- * The edge functions handle setting the RLS context using the session token
+ * Sets the session token in the Supabase client for RLS access control
  * This ensures all database operations are properly scoped to the user's session
  */
 export const setSessionToken = async (token: string) => {
-  // Session token is stored in localStorage via useSessionToken hook
-  // and passed to edge functions for RLS context setting
-  console.log('Session token stored for secure access');
+  try {
+    // Set the session token in the database session for RLS policies
+    const { error } = await supabase.rpc('set_config', {
+      setting_name: 'app.session_token',
+      setting_value: token
+    });
+    
+    if (error) {
+      console.warn('Failed to set session token for RLS:', error);
+    }
+  } catch (error) {
+    console.warn('Error setting session token:', error);
+  }
 };
 
 /**
- * Session token clearing is handled by the useSessionToken hook
+ * Clears the session token from the Supabase client
  */
 export const clearSessionToken = async () => {
-  console.log('Session token cleared');
+  try {
+    const { error } = await supabase.rpc('set_config', {
+      setting_name: 'app.session_token', 
+      setting_value: ''
+    });
+    
+    if (error) {
+      console.warn('Failed to clear session token:', error);
+    }
+  } catch (error) {
+    console.warn('Error clearing session token:', error);
+  }
 };
