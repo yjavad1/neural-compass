@@ -1,6 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from 'https://esm.sh/zod@3.22.4';
+import { 
+  processBackground, 
+  processInterests, 
+  generateJustification, 
+  calculatePersonalizedTimeline,
+  generatePersonalizedStrengths 
+} from './personalizationUtils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,7 +76,7 @@ TIME: ${personaJson.hours_per_week || 10}hrs/week, ${personaJson.timeline_months
 CONSTRAINTS: ${personaJson.constraints?.join(', ') || 'None'}
 
 CRITICAL REQUIREMENTS:
-- Generate ${getPhaseCount()} phases with realistic timelines  
+- Generate 4 phases with realistic timelines  
 - Each resource MUST have working URLs to SPECIFIC courses/content
 - Include 2-4 resources per phase from real educational platforms
 
@@ -90,6 +97,12 @@ Instead of URLs, describe what you want:
 - "Python programming tutorial from Khan Academy, interactive, self-paced"
 - "Data Science bootcamp from Udemy, practical projects, 20+ hours"
 
+PERSONALIZATION GUIDELINES:
+- Use first-person language: "As a [background], you have..." not "your [raw input] background"
+- Connect their specific background to the AI role meaningfully
+- Explain WHY this path makes sense for THEIR situation specifically
+- Be conversational and insightful, not templated
+
 Generate PERSONALIZED content based on their specific background. Return valid JSON only:
 
 {
@@ -98,10 +111,10 @@ Generate PERSONALIZED content based on their specific background. Return valid J
   "timeline": "BASED_ON_THEIR_HOURS_AND_TIMELINE",
   "hiringOutlook": "CURRENT_MARKET_OUTLOOK",
   "justification": {
-    "whyThisPath": "SPECIFIC_TO_THEIR_BACKGROUND_AND_GOALS",
-    "strengths": ["STRENGTH_FROM_BACKGROUND", "ANOTHER_STRENGTH", "THIRD_STRENGTH"],
-    "alternativePaths": ["ALTERNATIVE_1", "ALTERNATIVE_2"],
-    "whyNotAlternatives": "WHY_THIS_PATH_BETTER_FOR_THEM"
+    "whyThisPath": "As a [background], you bring [specific skills/insights]. This AI path leverages [how their background helps] while [what they'll gain]. Your interest in [interests] aligns perfectly because [specific connection].",
+    "strengths": ["Specific strength from their background", "Another relevant strength", "Third meaningful strength"],
+    "alternativePaths": ["Alternative path 1", "Alternative path 2"],
+    "whyNotAlternatives": "While these are good options, your specific combination of [background] and [interests] makes this path more direct because [specific reason]."
   },
   "salary": {
     "entry": "$X,000 - $Y,000",
@@ -229,40 +242,27 @@ Generate PERSONALIZED content based on their specific background. Return valid J
 function generateDynamicFallback(selectedRole: string, personaJson: any): any {
   console.log(`🚨 Generating dynamic personalized fallback for ${selectedRole}`);
   
-  const baseTimeline = personaJson.timeline_months || 6;
-  const hours = personaJson.hours_per_week || 10;
   const codingLevel = personaJson.coding || 'none';
-  const background = personaJson.background?.[0] || 'General';
-  const interests = personaJson.interests?.[0] || 'AI';
   
   // Personalize difficulty based on actual background
   let difficulty = 'Beginner';
-  if (codingLevel === 'advanced' || background.includes('Computer Science') || background.includes('Engineering')) {
+  const background = personaJson.background?.[0]?.toLowerCase() || '';
+  if (codingLevel === 'advanced' || background.includes('computer science') || background.includes('engineering')) {
     difficulty = 'Advanced';
   } else if (codingLevel === 'some' || codingLevel === 'intermediate') {
     difficulty = 'Intermediate';
   }
   
-  // Personalize timeline based on hours
-  const adjustedTimeline = hours >= 20 ? Math.max(3, baseTimeline - 2) : 
-                          hours >= 10 ? baseTimeline : 
-                          baseTimeline + 2;
+  // Use the new personalization utilities
+  const timeline = calculatePersonalizedTimeline(personaJson);
+  const justification = generateJustification(personaJson, selectedRole);
   
   return {
     role: selectedRole,
     difficulty: difficulty,
-    timeline: `${adjustedTimeline}-${adjustedTimeline + 2} months`,
+    timeline: timeline,
     hiringOutlook: 'Strong demand in AI field with growing opportunities',
-    justification: {
-      whyThisPath: `Based on your ${background} background and ${codingLevel} coding experience, this ${selectedRole} path leverages your existing skills while building the specialized AI expertise you're seeking. Your interest in ${interests} aligns perfectly with this career direction.`,
-      strengths: [
-        codingLevel !== 'none' ? 'Existing programming foundation' : 'Strong learning motivation',
-        `${background} background provides relevant context`,
-        `Clear commitment with ${hours} hours per week available`
-      ],
-      alternativePaths: ['Data Scientist', 'Machine Learning Engineer', 'AI Research Scientist'],
-      whyNotAlternatives: `Your specific combination of ${background} background and ${interests} interests makes ${selectedRole} the most direct path to your goals.`
-    },
+    justification: justification,
     salary: {
       entry: '$75,000 - $95,000',
       mid: '$95,000 - $130,000',
