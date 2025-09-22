@@ -224,21 +224,27 @@ CRITICAL REQUIREMENTS:
 7. Give realistic timeline estimates based on their available hours`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
       body: JSON.stringify({
-        model: "gpt-4o",
-        max_tokens: 3000,
+        model: "gpt-4o-mini", // Use faster model
+        max_tokens: 2500, // Reduced token limit
         temperature: 0.3,
         messages: [
           { role: "user", content: detailedPrompt }
         ],
       }),
     });
+    
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const error = await response.json();
@@ -450,14 +456,14 @@ serve(async (req) => {
   }
 
   try {
-    const { persona, selectedRole } = await req.json();
+    const { personaJson, selectedRole } = await req.json();
     
     console.log("🚀 Starting LLM-first roadmap generation");
     console.log("Role:", selectedRole);
-    console.log("Persona:", JSON.stringify(persona, null, 2));
+    console.log("Persona:", JSON.stringify(personaJson, null, 2));
 
     // Generate the roadmap using simplified approach
-    const roadmap = await generateRoadmap(persona, selectedRole);
+    const roadmap = await generateRoadmap(personaJson, selectedRole);
 
     return new Response(JSON.stringify(roadmap), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
