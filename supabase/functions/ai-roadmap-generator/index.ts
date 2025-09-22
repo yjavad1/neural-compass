@@ -317,8 +317,90 @@ function convertDbResourceToRoadmapResource(dbResource: any): any {
   };
 }
 
-// Enhanced resource selector with retry logic
+// Batch resource selector for all phases at once (PERFORMANCE OPTIMIZATION)
+async function selectAllResourcesBatch(phases: any[], personaJson: any, openAIApiKey: string, timeout = 8000): Promise<Record<string, string[]>> {
+  console.log('🚀 Batching resource selection for all phases...');
+  
+  const timeoutPromise = new Promise<Record<string, string[]>>((_, reject) =>
+    setTimeout(() => reject(new Error('Resource selection timeout')), timeout)
+  );
+  
+  const selectionPromise = async (): Promise<Record<string, string[]>> => {
+    try {
+      const userLevel = personaJson.coding === 'none' ? 'beginner' : 
+                       personaJson.coding === 'advanced' ? 'intermediate' : 'beginner';
+      
+      // Pre-fetch candidates for all phases in parallel
+      const candidatePromises = phases.map(async (phase) => ({
+        phase: phase.name,
+        candidates: await getCandidatesByPhase(phase.name, userLevel, 4) // Reduced from 8 to 4
+      }));
+      
+      const allCandidates = await Promise.all(candidatePromises);
+      
+      // Build single batch payload
+      const batchPayload = {
+        persona: personaJson,
+        phases: allCandidates.map(({ phase, candidates }) => ({
+          name: phase,
+          skills: phases.find(p => p.name === phase)?.skills || [],
+          candidates: candidates
+        }))
+      };
+      
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          max_tokens: 800, // Increased for batch response
+          temperature: 0.1, // Lower for faster processing
+          messages: [
+            { 
+              role: "system", 
+              content: `Return ONLY JSON with this exact format: {"phases": {"Phase Name": ["id1","id2"], "Phase Name 2": ["id3","id4"]}}.
+Select 2-3 best resource IDs for each phase based on skills and candidates provided.
+Never invent IDs - only use IDs from the candidates array.`
+            },
+            { role: "user", content: JSON.stringify(batchPayload) }
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn('Batch selection failed, falling back to individual selection');
+        throw new Error('Batch failed');
+      }
+
+      const data = await response.json();
+      const text = data.choices[0]?.message?.content ?? "{}";
+      const result = JSON.parse(text);
+      
+      return result.phases || {};
+    } catch (e) {
+      console.warn('Batch resource selection failed, using fallback strategy');
+      // Fallback: return empty object to trigger curated resources
+      return {};
+    }
+  };
+  
+  try {
+    return await Promise.race([selectionPromise(), timeoutPromise]);
+  } catch (e) {
+    console.warn('Resource selection timed out or failed, using curated fallback');
+    return {};
+  }
+}
+
+// Legacy single resource selector (kept for backward compatibility)
 async function selectResourceIds(payload: any, openAIApiKey: string, attempt = 1): Promise<string[]> {
+  // For single calls, use fast timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
+  
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -326,43 +408,35 @@ async function selectResourceIds(payload: any, openAIApiKey: string, attempt = 1
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.2,
-        max_tokens: 450,
+        temperature: 0.1,
+        max_tokens: 200, // Reduced for faster response
         messages: [
           { 
             role: "system", 
-            content: `Return ONLY JSON: {"resource_ids":["id1","id2","id3"]}.
-Pick 2–4 IDs from CANDIDATES that best match PHASE and SKILLS.
-Never invent IDs. If uncertain, pick the closest 2.`
+            content: `Return ONLY JSON: {"resource_ids":["id1","id2"]}.
+Pick 2 best IDs from CANDIDATES. Never invent IDs.`
           },
           { role: "user", content: JSON.stringify(payload) }
         ],
       }),
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      throw new Error('API error');
     }
 
     const data = await response.json();
     const text = data.choices[0]?.message?.content ?? "{}";
     const out = JSON.parse(text);
-    const ids = Array.isArray(out.resource_ids) ? out.resource_ids : [];
-    return ids;
+    return Array.isArray(out.resource_ids) ? out.resource_ids : [];
   } catch (e: any) {
-    console.error(`Resource selection attempt ${attempt} failed:`, e);
-    
-    // Retry on rate limit with backoff
-    if ((e.status === 429 || /rate limit/i.test(String(e))) && attempt < 3) {
-      console.log(`Rate limited, retrying in ${attempt * 1000}ms...`);
-      await new Promise(r => setTimeout(r, attempt * 1000));
-      return selectResourceIds(payload, openAIApiKey, attempt + 1);
-    }
-    
-    console.warn('Resource selection failed, returning empty array');
+    clearTimeout(timeoutId);
+    console.warn('Single resource selection failed, returning empty array');
     return [];
   }
 }
@@ -542,7 +616,7 @@ Return ONLY valid JSON, no explanations or markdown.`;
   }
 }
 
-// Two-stage generation with robust resource selection
+// OPTIMIZED: Batch resource attachment for better performance
 async function attachResourceIdsToRoadmap(
   roadmapNoResources: any,
   personaJson: any,
@@ -550,7 +624,7 @@ async function attachResourceIdsToRoadmap(
   curatedFallbackByPhase: Record<PhaseName, any[]>,
   catalogById: Record<string, any>
 ): Promise<any> {
-  console.log('🔄 Starting two-stage resource attachment process...');
+  console.log('🚀 Starting OPTIMIZED batch resource attachment...');
   
   // Normalize phase names first
   const phases = roadmapNoResources.phases.map((p: any) => ({ 
@@ -558,63 +632,50 @@ async function attachResourceIdsToRoadmap(
     name: normalizePhase(p.name) 
   }));
 
+  // Try batch selection first (PERFORMANCE OPTIMIZATION)
+  const batchResults = await selectAllResourcesBatch(phases, personaJson, openAIApiKey);
+  
   // Build RoadmapWithIds structure
   const withIds = {
     ...roadmapNoResources,
     phases: []
   };
 
-  const userLevel = personaJson.coding === 'none' ? 'beginner' : 
-                   personaJson.coding === 'advanced' ? 'intermediate' : 'beginner';
-
   for (const ph of phases) {
-    console.log(`🎯 Processing phase: ${ph.name}`);
+    const phaseName = ph.name as PhaseName;
+    let ids: string[] = [];
     
-    // Get candidates for AI selection (cap at 8 for efficiency)
-    const candidates = await getCandidatesByPhase(ph.name, userLevel, 8);
-    let ids: string[];
-
-    if (!candidates.length) {
-      console.log(`⚠️ No candidates found for ${ph.name}, using curated fallback`);
-      // Hard fallback: pick top curated for this phase
-      ids = (curatedFallbackByPhase[ph.name as PhaseName] || [])
+    // Use batch results if available
+    if (batchResults[phaseName] && batchResults[phaseName].length > 0) {
+      ids = batchResults[phaseName];
+      console.log(`✨ Used batch result for ${phaseName}: ${ids.length} resources`);
+    } else {
+      console.log(`🔄 Fallback to curated resources for ${phaseName}`);
+      // Direct curated fallback (skip individual AI calls)
+      ids = (curatedFallbackByPhase[phaseName] || [])
         .slice(0, 3)
         .map((r: any) => r.id);
-    } else {
-      console.log(`🤖 AI selecting from ${candidates.length} candidates for ${ph.name}`);
-      
-      const payload = {
-        persona: personaJson,
-        phase: ph.name,
-        skills: ph.skills,
-        candidates: candidates,
-        example: { resource_ids: candidates.slice(0, 2).map((c: any) => c.id) }
-      };
-      
-      ids = await selectResourceIds(payload, openAIApiKey);
-
-      // If AI selection returned fewer than 2, pad with curated
-      if (ids.length < 2) {
-        console.log(`🔧 AI returned ${ids.length} IDs, padding with curated for ${ph.name}`);
-        const pad = (curatedFallbackByPhase[ph.name as PhaseName] || [])
-          .filter((r: any) => !ids.includes(r.id))
-          .slice(0, 2 - ids.length)
-          .map((r: any) => r.id);
-        ids = [...ids, ...pad];
-      }
     }
 
-    console.log(`✅ Phase ${ph.name} will use ${ids.length} resources`);
+    // Ensure minimum resources with curated padding if needed
+    if (ids.length < 2) {
+      const pad = (curatedFallbackByPhase[phaseName] || [])
+        .filter((r: any) => !ids.includes(r.id))
+        .slice(0, 2 - ids.length)
+        .map((r: any) => r.id);
+      ids = [...ids, ...pad];
+    }
+
+    console.log(`✅ Phase ${phaseName}: ${ids.length} resources assigned`);
     withIds.phases.push({ ...ph, resource_ids: ids });
   }
 
-  // Validate and materialize
+  // Quick validation and materialization
   try {
     const parsed = RoadmapWithIdsSchema.parse(withIds);
     return materializeResources(parsed, catalogById, curatedFallbackByPhase);
   } catch (validationError) {
-    console.error('❌ Schema validation failed:', validationError);
-    // Fallback: materialize without validation
+    console.warn('⚠️ Schema validation failed, using fallback materialization');
     return materializeResources(withIds, catalogById, curatedFallbackByPhase);
   }
 }
@@ -636,73 +697,140 @@ async function selectResourcesForPhase(
   }, openAIApiKey);
 }
 
-// Main generation function with enhanced two-stage approach
+// PERFORMANCE OPTIMIZED: Main generation function
 async function generateRoadmapWithCuratedResources(personaJson: any, selectedRole: string, openAIApiKey: string): Promise<any> {
+  const startTime = Date.now();
   const userLevel = personaJson.coding === 'none' ? 'beginner' : 
                    personaJson.coding === 'advanced' ? 'intermediate' : 'beginner';
   
-  console.log('🚀 Starting enhanced two-stage roadmap generation...');
+  console.log('⚡ Starting OPTIMIZED roadmap generation...');
   console.log(`👤 User level: ${userLevel}, Role: ${selectedRole}`);
   
-  // Stage A: Generate roadmap structure with exact phase names
-  const roadmapStructure = await generateRoadmapStructure(personaJson, selectedRole, openAIApiKey);
-  console.log('✅ Generated roadmap structure');
+  try {
+    // OPTIMIZATION: Parallel execution of initial data fetching
+    const [roadmapStructure, catalogSnapshot, curatedFallbackByPhase] = await Promise.all([
+      // Stage A: Generate roadmap structure (timeout after 10s)
+      Promise.race([
+        generateRoadmapStructure(personaJson, selectedRole, openAIApiKey),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Structure generation timeout')), 10000))
+      ]),
+      // Pre-fetch smaller resource catalog (500 instead of 1000)
+      supabase.from('resources').select('*').order('quality_score', { ascending: false }).limit(500),
+      // Pre-fetch curated fallbacks
+      getCuratedFallbackByPhase(userLevel)
+    ]);
+    
+    console.log(`✅ Structure generated in ${Date.now() - startTime}ms`);
+    
+    // Build resource catalog efficiently
+    const catalogById: Record<string, any> = {};
+    catalogSnapshot.data?.forEach((r: any) => {
+      catalogById[r.id] = r;
+    });
+    
+    console.log(`📚 Pre-loaded ${Object.keys(catalogById).length} resources`);
+    
+    // Stage B: OPTIMIZED resource attachment with timeout
+    const resourceAttachStart = Date.now();
+    const finalRoadmap = await Promise.race([
+      attachResourceIdsToRoadmap(
+        roadmapStructure,
+        personaJson,
+        openAIApiKey,
+        curatedFallbackByPhase,
+        catalogById
+      ),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Resource attachment timeout')), 8000))
+    ]);
+    
+    console.log(`✅ Resources attached in ${Date.now() - resourceAttachStart}ms`);
+    
+    // Quick metadata generation (no additional AI calls)
+    const completeRoadmap = {
+      ...finalRoadmap,
+      difficulty: userLevel.charAt(0).toUpperCase() + userLevel.slice(1),
+      timeline: `${finalRoadmap.timeline_weeks?.mid || 12} weeks`,
+      hiringOutlook: 'Good',
+      justification: {
+        whyThisPath: `This ${selectedRole} path matches your ${personaJson.coding} coding background and ${personaJson.timeline_months}-month timeline.`,
+        strengths: ['Quick learner', 'Technical aptitude', 'Growth mindset'],
+        alternativePaths: ['Data Scientist', 'Software Engineer'],
+        whyNotAlternatives: 'Your specific interests and skills make this path optimal.'
+      },
+      salary: {
+        entry: '$70,000 - $90,000',
+        mid: '$90,000 - $130,000', 
+        senior: '$130,000 - $180,000'
+      },
+      nextSteps: [
+        'Begin with Phase 1 foundation resources',
+        'Set up development environment',
+        'Join AI/ML communities for support'
+      ]
+    };
+    
+    const totalTime = Date.now() - startTime;
+    console.log(`🎉 OPTIMIZED generation completed in ${totalTime}ms`);
+    
+    // Log performance metrics
+    completeRoadmap.phases.forEach((p: any) => {
+      console.log(`📊 Phase "${p.name}": ${p.resources?.length || 0} resources`);
+    });
+    
+    return completeRoadmap;
+    
+  } catch (error) {
+    console.error(`❌ Generation failed after ${Date.now() - startTime}ms:`, error);
+    
+    // FAST FALLBACK: Return basic roadmap with curated resources only
+    const fallbackRoadmap = await generateFallbackRoadmap(personaJson, selectedRole, userLevel);
+    console.log('🔄 Returned fallback roadmap');
+    return fallbackRoadmap;
+  }
+}
+
+// Emergency fallback roadmap generator
+async function generateFallbackRoadmap(personaJson: any, selectedRole: string, userLevel: string): Promise<any> {
+  console.log('🚨 Generating emergency fallback roadmap...');
   
-  // Pre-fetch resources for efficiency
-  const [catalogSnapshot, curatedFallbackByPhase] = await Promise.all([
-    // Get sample of all resources for catalogById
-    supabase.from('resources').select('*').limit(1000),
-    getCuratedFallbackByPhase(userLevel)
-  ]);
+  const curatedFallbackByPhase = await getCuratedFallbackByPhase(userLevel);
   
-  const catalogById: Record<string, any> = {};
-  catalogSnapshot.data?.forEach((r: any) => {
-    catalogById[r.id] = r;
-  });
-  
-  console.log(`📚 Pre-loaded ${Object.keys(catalogById).length} resources and fallbacks`);
-  
-  // Stage B: Attach resources using the new robust method
-  const finalRoadmap = await attachResourceIdsToRoadmap(
-    roadmapStructure,
-    personaJson,
-    openAIApiKey,
-    curatedFallbackByPhase,
-    catalogById
-  );
-  
-  // Add missing fields for backward compatibility
-  const completeRoadmap = {
-    ...finalRoadmap,
-    difficulty: userLevel === 'beginner' ? 'Beginner' : userLevel === 'intermediate' ? 'Intermediate' : 'Advanced',
-    timeline: `${finalRoadmap.timeline_weeks?.mid || 12} weeks`,
+  return {
+    role: selectedRole,
+    difficulty: userLevel.charAt(0).toUpperCase() + userLevel.slice(1),
+    timeline: `${personaJson.timeline_months * 4} weeks`,
     hiringOutlook: 'Good',
     justification: {
-      whyThisPath: `This ${selectedRole} path aligns perfectly with your background and goals.`,
-      strengths: ['Quick learner', 'Technical aptitude', 'Growth mindset'],
-      alternativePaths: ['Data Scientist', 'Software Engineer'],
-      whyNotAlternatives: 'Your specific interests and skills make this path the best fit.'
+      whyThisPath: `${selectedRole} is a great fit for your background.`,
+      strengths: ['Technical aptitude', 'Learning motivation'],
+      alternativePaths: ['Related AI roles'],
+      whyNotAlternatives: 'This path suits your goals best.'
     },
     salary: {
       entry: '$70,000 - $90,000',
       mid: '$90,000 - $130,000',
       senior: '$130,000 - $180,000'
     },
+    phases: PHASES.map((phaseName, index) => ({
+      name: phaseName,
+      duration: `${Math.floor(personaJson.timeline_months)} weeks`,
+      objective: `Complete ${phaseName} learning`,
+      skills: [`${phaseName} Skill 1`, `${phaseName} Skill 2`],
+      projects: [{
+        title: `${phaseName} Project`,
+        size: 'M',
+        brief: `Build a project demonstrating ${phaseName} concepts`
+      }],
+      resources: (curatedFallbackByPhase[phaseName] || [])
+        .slice(0, 3)
+        .map(convertDbResourceToRoadmapResource)
+    })),
     nextSteps: [
-      'Start with the first resource in Phase 1',
-      'Set up a development environment',
-      'Join relevant AI communities and forums'
+      'Start with Phase 1 resources',
+      'Set up learning environment', 
+      'Track progress weekly'
     ]
   };
-  
-  console.log('🎉 Enhanced two-stage generation completed successfully');
-  
-  // Log resource counts for monitoring
-  completeRoadmap.phases.forEach((p: any) => {
-    console.log(`📊 Phase "${p.name}": ${p.resources?.length || 0} resources`);
-  });
-  
-  return completeRoadmap;
 }
 
 serve(async (req) => {
