@@ -47,15 +47,60 @@ const generateRating = (provider: string, type: string): number => {
   return Math.round((baseRating + variation) * 10) / 10;
 };
 
-// Validate and fix URLs
+// Enhanced URL validation with blacklist patterns
 const validateAndFixUrl = (url: string, provider: string, title: string): string => {
   if (!url || url === '#' || url === 'TBD' || url.includes('example.com')) {
     return generateProviderUrl(provider, title);
   }
 
+  // Blacklist patterns for generic/trending/search pages
+  const blacklistPatterns = [
+    '/trending',
+    '/papers/trending',
+    '/search',
+    '/browse',
+    '/explore',
+    '/popular',
+    '/latest',
+    '/hot',
+    '/featured'
+  ];
+
+  // Check if URL contains blacklisted patterns
+  const hasBlacklistedPattern = blacklistPatterns.some(pattern => 
+    url.toLowerCase().includes(pattern)
+  );
+
+  if (hasBlacklistedPattern) {
+    console.log(`🚫 Blacklisted URL detected: ${url}, generating fallback`);
+    return generateProviderUrl(provider, title);
+  }
+
   // Basic URL validation
   try {
-    new URL(url);
+    const urlObj = new URL(url);
+    
+    // Check domain consistency with provider
+    const domainMap: Record<string, string[]> = {
+      'Coursera': ['coursera.org'],
+      'edX': ['edx.org'],
+      'Udemy': ['udemy.com'],
+      'YouTube': ['youtube.com', 'youtu.be'],
+      'Khan Academy': ['khanacademy.org'],
+      'FreeCodeCamp': ['freecodecamp.org'],
+      'MIT OpenCourseWare': ['ocw.mit.edu'],
+      'Stanford Online': ['online.stanford.edu'],
+      'Kaggle': ['kaggle.com'],
+      'GitHub': ['github.com'],
+      'HuggingFace': ['huggingface.co']
+    };
+
+    const expectedDomains = domainMap[provider];
+    if (expectedDomains && !expectedDomains.some(domain => urlObj.hostname.includes(domain))) {
+      console.log(`🚫 Domain mismatch for ${provider}: ${urlObj.hostname}, generating fallback`);
+      return generateProviderUrl(provider, title);
+    }
+
     return url;
   } catch {
     return generateProviderUrl(provider, title);

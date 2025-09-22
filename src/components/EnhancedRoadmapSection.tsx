@@ -25,6 +25,7 @@ import {
   CheckSquare,
   Square
 } from "lucide-react";
+import { getPhaseTypeColor, getPhaseIcon } from '@/lib/phases';
 
 interface Resource {
   title: string;
@@ -412,10 +413,16 @@ export const EnhancedRoadmapSection: React.FC<EnhancedRoadmapSectionProps> = ({
                       ) : (
                         <div className="w-6 h-6 rounded-full border-2 border-muted" />
                       )}
-                      Phase {index + 1}: {phase.name}
+                      <span className="text-2xl mr-2">{getPhaseIcon(phase.name)}</span>
+                      {phase.name}
                     </CardTitle>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">{phase.duration}</Badge>
+                      <Badge 
+                        variant="outline" 
+                        className={`${getPhaseTypeColor(phase.name)} border-2`}
+                      >
+                        {phase.duration}
+                      </Badge>
                       <Button
                         variant="ghost"
                         size="sm"

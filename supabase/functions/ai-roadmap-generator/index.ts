@@ -68,11 +68,26 @@ INTERESTS: ${personaJson.interests?.join(', ') || 'AI/ML'}
 TIME: ${personaJson.hours_per_week || 10}hrs/week, ${personaJson.timeline_months || 6} months
 CONSTRAINTS: ${personaJson.constraints?.join(', ') || 'None'}
 
-RESOURCE URL REQUIREMENTS - CRITICAL:
-- Use REAL, verified URLs from major educational platforms
-- Examples: https://www.coursera.org/learn/machine-learning, https://developers.google.com/machine-learning/crash-course
-- For searches use: https://provider.com/search?q=topic
-- NEVER use placeholder URLs like https://example.com
+CRITICAL REQUIREMENTS:
+- Generate ${getPhaseCount()} phases with realistic timelines  
+- Each resource MUST have working URLs to SPECIFIC courses/content
+- Include 2-4 resources per phase from real educational platforms
+
+RESOURCE URL GUIDELINES:
+🚫 NEVER USE: trending pages, search pages, browse pages, or generic landing pages
+✅ USE ONLY: Direct links to specific courses, tutorials, or learning materials
+
+EXAMPLES OF GOOD URLs:
+- https://www.coursera.org/learn/machine-learning-course
+- https://www.udemy.com/course/python-for-data-science-and-machine-learning-bootcamp/
+- https://ocw.mit.edu/courses/6-034-artificial-intelligence-fall-2010/
+- https://www.kaggle.com/learn/intro-to-machine-learning
+
+EXAMPLES OF BAD URLs (DO NOT USE):
+- https://huggingface.co/papers/trending
+- https://coursera.org/browse/data-science
+- https://github.com/trending
+- Any URL with /search, /trending, /browse, /explore
 
 Generate PERSONALIZED content based on their specific background. Return valid JSON only:
 
