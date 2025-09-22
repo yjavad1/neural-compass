@@ -13,14 +13,45 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
-// Zod schema for roadmap validation
+// Updated data contracts for resource ID-based approach
 const ProjectSchema = z.object({
   title: z.string(),
-  description: z.string(),
-  keySkills: z.array(z.string()),
-  portfolioValue: z.string(),
+  size: z.enum(["S", "M", "L"]),
+  brief: z.string(),
 });
 
+const PhaseWithIdsSchema = z.object({
+  name: z.string(),
+  weeks: z.number(),
+  skills: z.array(z.string()).min(1),
+  projects: z.array(ProjectSchema).min(1),
+  resource_ids: z.array(z.string()).min(2),
+});
+
+const RoadmapWithIdsSchema = z.object({
+  role: z.string(),
+  timeline_weeks: z.object({
+    low: z.number(),
+    mid: z.number(),
+    high: z.number(),
+  }),
+  weekly_hours: z.number(),
+  phases: z.array(PhaseWithIdsSchema).min(3).max(4),
+});
+
+// Resource selection schemas
+const ResourceCandidateSchema = z.object({
+  id: z.string(),
+  topics: z.array(z.string()),
+  level: z.string(),
+  cost: z.string(),
+});
+
+const ResourceSelectionSchema = z.object({
+  resource_ids: z.array(z.string()).min(2),
+});
+
+// Final output schemas (for UI)
 const ResourceSchema = z.object({
   title: z.string(),
   type: z.string(),
@@ -32,7 +63,7 @@ const ResourceSchema = z.object({
   whyRecommended: z.string(),
 });
 
-const PhaseSchema = z.object({
+const FinalPhaseSchema = z.object({
   name: z.string(),
   duration: z.string(),
   objective: z.string(),
@@ -57,14 +88,14 @@ const RoadmapSchema = z.object({
     mid: z.string(),
     senior: z.string(),
   }),
-  phases: z.array(PhaseSchema),
+  phases: z.array(FinalPhaseSchema),
   nextSteps: z.array(z.string()),
 });
 
-// Function to get curated resources from database
-async function getCuratedResources(phase: string, userLevel: string, limit: number = 8) {
+// Get resource candidates for AI selection (minimal data)
+async function getCandidatesByPhase(phase: string, userLevel: string, limit: number = 6): Promise<any[]> {
   try {
-    console.log(`Querying curated resources for phase: ${phase}, level: ${userLevel}`);
+    console.log(`Getting resource candidates for phase: ${phase}, level: ${userLevel}`);
     
     // Get phase ID first
     const { data: phases, error: phaseError } = await supabase
@@ -74,8 +105,101 @@ async function getCuratedResources(phase: string, userLevel: string, limit: numb
       .single();
 
     if (phaseError || !phases) {
+      console.log('Phase not found, using foundational resources');
+      const { data: resources, error } = await supabase
+        .from('resources')
+        .select('id, type, tags, difficulty_level, cost_type')
+        .eq('is_core_foundational', true)
+        .order('quality_score', { ascending: false })
+        .limit(limit);
+      
+      return resources?.map(r => ({
+        id: r.id,
+        topics: r.tags || [],
+        level: r.difficulty_level,
+        cost: r.cost_type
+      })) || [];
+    }
+
+    const { data: resources, error } = await supabase
+      .from('resources')
+      .select(`
+        id, type, tags, difficulty_level, cost_type,
+        resource_phase_mappings!inner(relevance_score)
+      `)
+      .eq('resource_phase_mappings.phase_id', phases.id)
+      .in('difficulty_level', userLevel === 'beginner' ? ['beginner'] : ['beginner', 'intermediate', 'advanced'])
+      .order('quality_score', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching candidates:', error);
+      return [];
+    }
+
+    return resources?.map(r => ({
+      id: r.id,
+      topics: r.tags || [],
+      level: r.difficulty_level,
+      cost: r.cost_type
+    })) || [];
+  } catch (error) {
+    console.error('Exception in getCandidatesByPhase:', error);
+    return [];
+  }
+}
+
+// Get full resource objects by IDs
+async function getResourcesByIds(ids: string[]): Promise<Record<string, any>> {
+  try {
+    const { data: resources, error } = await supabase
+      .from('resources')
+      .select('*')
+      .in('id', ids);
+
+    if (error) {
+      console.error('Error fetching resources by IDs:', error);
+      return {};
+    }
+
+    const catalog: Record<string, any> = {};
+    resources?.forEach(r => {
+      catalog[r.id] = r;
+    });
+
+    return catalog;
+  } catch (error) {
+    console.error('Exception in getResourcesByIds:', error);
+    return {};
+  }
+}
+
+// Get curated resources as fallback for phases
+async function getCuratedFallbackByPhase(userLevel: string): Promise<Record<string, any[]>> {
+  const phases = ['Foundations & Core', 'Specialization Deep-Dive', 'Practical Application', 'Advanced & Research'];
+  const fallback: Record<string, any[]> = {};
+  
+  for (const phase of phases) {
+    const resources = await getCuratedResources(phase, userLevel, 4);
+    fallback[phase] = resources;
+  }
+  
+  return fallback;
+}
+
+// Legacy function for existing compatibility
+async function getCuratedResources(phase: string, userLevel: string, limit: number = 8) {
+  try {
+    console.log(`Querying curated resources for phase: ${phase}, level: ${userLevel}`);
+    
+    const { data: phases, error: phaseError } = await supabase
+      .from('learning_phases')
+      .select('id')
+      .eq('name', phase)
+      .single();
+
+    if (phaseError || !phases) {
       console.error('Error fetching phase:', phaseError);
-      // Fall back to getting foundational resources if phase not found
       const { data: resources, error } = await supabase
         .from('resources')
         .select('*')
@@ -87,7 +211,6 @@ async function getCuratedResources(phase: string, userLevel: string, limit: numb
       return resources || [];
     }
 
-    // Query resources through the mapping table - remove core foundational filter for non-foundation phases
     const { data: resources, error } = await supabase
       .from('resources')
       .select(`
@@ -113,17 +236,42 @@ async function getCuratedResources(phase: string, userLevel: string, limit: numb
   }
 }
 
-// Function to get curated resources for all phases
-async function getAllPhaseCuratedResources(userLevel: string) {
-  const phases = ['Foundations & Core', 'Specialization Deep-Dive', 'Practical Application', 'Advanced & Research'];
-  const allResources = {};
+// Resource materialization with fallback
+function materializeResources(
+  roadmap: any,
+  catalogById: Record<string, any>,
+  curatedFallbackByPhase: Record<string, any[]>
+): any {
+  console.log('Materializing resources for roadmap phases...');
   
-  for (const phase of phases) {
-    const resources = await getCuratedResources(phase, userLevel, 6);
-    allResources[phase] = resources.map(convertDbResourceToRoadmapResource);
-  }
-  
-  return allResources;
+  const phases = roadmap.phases.map((ph: any) => {
+    const selected = (ph.resource_ids || [])
+      .map((id: string) => catalogById[id])
+      .filter(Boolean)
+      .map(convertDbResourceToRoadmapResource);
+
+    const need = Math.max(0, 2 - selected.length);
+    if (need > 0) {
+      console.log(`Phase ${ph.name} needs ${need} more resources, using fallback`);
+      const extras = (curatedFallbackByPhase[ph.name] || [])
+        .filter((r: any) => !ph.resource_ids?.includes(r.id))
+        .slice(0, need)
+        .map(convertDbResourceToRoadmapResource);
+      selected.push(...extras);
+    }
+
+    // Convert to final UI format
+    return {
+      name: ph.name,
+      duration: `${ph.weeks} weeks`,
+      objective: `Complete ${ph.name} phase learning objectives`,
+      skills: ph.skills,
+      projects: ph.projects,
+      resources: selected
+    };
+  });
+
+  return { ...roadmap, phases };
 }
 
 // Function to convert database resource to roadmap resource format
@@ -142,180 +290,91 @@ function convertDbResourceToRoadmapResource(dbResource: any): any {
   };
 }
 
-async function generateRoadmapWithCuratedResources(personaJson: any, selectedRole: string, openAIApiKey: string, maxRetries = 3): Promise<any> {
-  // Get curated resources for all phases
-  const userLevel = personaJson.coding === 'none' ? 'beginner' : 
-                   personaJson.coding === 'basic' ? 'intermediate' : 'advanced';
-  
-  const allPhaseResources = await getAllPhaseCuratedResources(userLevel);
-  
-  console.log(`Using curated resources for all phases:`, Object.keys(allPhaseResources).map(phase => 
-    `${phase}: ${allPhaseResources[phase].length} resources`
-  ).join(', '));
-
+// Stage A: Generate roadmap structure (no resources)
+async function generateRoadmapStructure(personaJson: any, selectedRole: string, openAIApiKey: string, maxRetries = 2): Promise<any> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    console.log(`Roadmap generation attempt ${attempt}/${maxRetries}`);
+    console.log(`Roadmap structure generation attempt ${attempt}/${maxRetries}`);
     
     try {
-      const roadmapPrompt = `You are an expert AI learning advisor creating a comprehensive, personalized roadmap.
+      const structurePrompt = `You are an expert AI learning advisor creating a personalized roadmap structure.
 
 USER PERSONA:
 ${JSON.stringify(personaJson, null, 2)}
 
 SELECTED PATH: ${selectedRole}
 
-CURATED RESOURCES FOR ALL PHASES (use these resources only):
-${JSON.stringify(allPhaseResources, null, 2)}
-
-CRITICAL: Analyze the selected path to determine the roadmap type:
-- If path contains "Learning Path", "Explorer", "Track" → Create EDUCATIONAL roadmap (knowledge-focused)
-- If path contains "Engineer", "Scientist", "Developer" → Create CAREER roadmap (job-focused)
-- If path contains "for [Profession]", "Tools", "Automation" → Create SKILL ENHANCEMENT roadmap
-- If path contains "in [Industry]" → Create INDUSTRY APPLICATION roadmap
-
-Generate a roadmap with this EXACT JSON structure (must be valid JSON):
+Generate a roadmap structure with this EXACT JSON format:
 
 {
   "role": "${selectedRole}",
-  "difficulty": "Beginner/Intermediate/Advanced", 
-  "timeline": "X months",
-  "hiringOutlook": "Strong/Good/Competitive",
-  "justification": {
-    "whyThisPath": "2-3 sentences explaining why this career path is perfect for them based on their background, interests, and goals",
-    "strengths": ["strength 1 they have", "strength 2 they have", "strength 3 they have"],
-    "alternativePaths": ["Alternative role 1", "Alternative role 2"],
-    "whyNotAlternatives": "Brief explanation of why the chosen path is better than alternatives for this specific person"
+  "timeline_weeks": {
+    "low": [number for fast track],
+    "mid": [number for typical track], 
+    "high": [number for thorough track]
   },
-  "salary": {
-    "entry": "$XX,000 - $XX,000",
-    "mid": "$XX,000 - $XX,000", 
-    "senior": "$XX,000 - $XX,000"
-  },
+  "weekly_hours": [recommended hours per week based on their availability],
   "phases": [
     {
       "name": "Foundations & Core",
-      "duration": "X weeks",
-      "objective": "What they'll achieve in this phase",
+      "weeks": [number of weeks for this phase],
       "skills": ["skill1", "skill2", "skill3", "skill4"],
       "projects": [
         {
           "title": "Project name",
-          "description": "What they'll build and why it's important",
-          "keySkills": ["skills this project teaches"],
-          "portfolioValue": "Why this project will impress employers"
+          "size": "S|M|L",
+          "brief": "Brief description of what they'll build"
         }
       ],
-      "resources": [
-        CRITICAL: Use ONLY the curated "Foundations & Core" resources provided above.
-        Each resource MUST be a JSON object with this EXACT format:
-        {
-          "title": "string",
-          "type": "string", 
-          "provider": "string",
-          "url": "string",
-          "estimatedTime": "string",
-          "cost": "string",
-          "difficulty": "string",
-          "whyRecommended": "string"
-        }
-        DO NOT return resources as strings. Return as objects only.
-        Select 5-8 most relevant resources from the curated "Foundations & Core" list.
-      ]
+      "resource_ids": []
     },
     {
-      "name": "Specialization Deep-Dive",
-      "duration": "X weeks", 
-      "objective": "Advanced concepts in chosen AI domain",
+      "name": "Specialization Deep-Dive", 
+      "weeks": [number of weeks],
       "skills": ["skill1", "skill2", "skill3"],
-      "projects": [PROJECT FOR THIS PHASE],
-      "resources": [
-        CRITICAL: Use ONLY the curated "Specialization Deep-Dive" resources provided above.
-        If no curated resources exist for this phase, use the "Foundations & Core" resources.
-        Each resource MUST be a JSON object with this EXACT format:
+      "projects": [
         {
-          "title": "Course/Resource Name",
-          "type": "course|tutorial|book|tool",
-          "provider": "Provider Name", 
-          "url": "verified URL from curated list",
-          "estimatedTime": "X hours|weeks",
-          "cost": "Free|Paid|Freemium",
-          "difficulty": "Beginner|Intermediate|Advanced",
-          "whyRecommended": "Brief explanation"
+          "title": "Project name",
+          "size": "S|M|L", 
+          "brief": "Brief description"
         }
-        Select 3-5 most relevant resources from the curated lists only.
-      ]
+      ],
+      "resource_ids": []
     },
     {
       "name": "Practical Application",
-      "duration": "X weeks",
-      "objective": "Hands-on projects and real-world implementation", 
+      "weeks": [number of weeks],
       "skills": ["skill1", "skill2", "skill3"],
-      "projects": [PROJECT FOR THIS PHASE],
-      "resources": [
-        CRITICAL: Use ONLY the curated "Practical Application" resources provided above.
-        If no curated resources exist for this phase, use the "Foundations & Core" resources.
-        Each resource MUST be a JSON object with this EXACT format:
+      "projects": [
         {
-          "title": "Course/Resource Name",
-          "type": "course|tutorial|book|tool", 
-          "provider": "Provider Name",
-          "url": "verified URL from curated list",
-          "estimatedTime": "X hours|weeks",
-          "cost": "Free|Paid|Freemium",
-          "difficulty": "Beginner|Intermediate|Advanced",
-          "whyRecommended": "Brief explanation"
+          "title": "Project name",
+          "size": "S|M|L",
+          "brief": "Brief description"
         }
-        Select 3-5 most relevant resources from the curated lists only.
-      ]
+      ],
+      "resource_ids": []
     },
     {
-      "name": "Advanced & Research", 
-      "duration": "X weeks",
-      "objective": "Cutting-edge topics and research-oriented learning",
+      "name": "Advanced & Research",
+      "weeks": [number of weeks], 
       "skills": ["skill1", "skill2", "skill3"],
-      "projects": [PROJECT FOR THIS PHASE],
-      "resources": [
-        CRITICAL: Use ONLY the curated "Advanced & Research" resources provided above.
-        If no curated resources exist for this phase, use the "Foundations & Core" resources.
-        Each resource MUST be a JSON object with this EXACT format:
+      "projects": [
         {
-          "title": "Course/Resource Name",
-          "type": "course|tutorial|book|tool",
-          "provider": "Provider Name", 
-          "url": "verified URL from curated list",
-          "estimatedTime": "X hours|weeks",
-          "cost": "Free|Paid|Freemium",
-          "difficulty": "Beginner|Intermediate|Advanced",
-          "whyRecommended": "Brief explanation"
+          "title": "Project name",
+          "size": "S|M|L",
+          "brief": "Brief description"
         }
-        Select 3-5 most relevant resources from the curated lists only.
-      ]
+      ],
+      "resource_ids": []
     }
-  ],
-  "nextSteps": [
-    "Immediate action 1 (this week)",
-    "Setup action 2 (this month)",
-    "Long-term goal 3 (first 3 months)"
   ]
 }
 
 REQUIREMENTS:
-- Build roadmap specifically for ${selectedRole}
-- Consider their coding level (${personaJson.coding}) and math skills (${personaJson.math})
-- CRITICAL: ONLY use the provided curated resources for ALL phases - DO NOT generate new URLs
-- Use resources from the curated lists above - never create new URLs or resources
-- If a phase has no curated resources, use resources from "Foundations & Core" phase
-- Include mix of free/paid resources based on budget constraints
 - Consider their ${personaJson.hours_per_week} hours/week availability
-- Match their timeline of ${personaJson.timeline_months} months
-- Factor in constraints: ${personaJson.constraints?.join(', ') || 'none'}
-- NEVER GENERATE FAKE URLs - only use the URLs provided in the curated resource lists
-
-ROADMAP FOCUS GUIDELINES:
-- **EDUCATIONAL roadmaps**: Focus on understanding concepts, theory, and broad knowledge. Projects are exploratory. Salary info can be "Knowledge-focused path" or focus on potential applications.
-- **CAREER roadmaps**: Focus on job-ready skills, portfolio building, and employment. Include realistic salary ranges and hiring advice.
-- **SKILL ENHANCEMENT roadmaps**: Focus on practical tools and applications within their current role. Projects enhance their existing work.
-- **INDUSTRY APPLICATION roadmaps**: Focus on AI applications specific to their industry. Projects solve real industry problems.
+- Match their timeline preference of ${personaJson.timeline_months} months
+- Adjust difficulty for their coding level: ${personaJson.coding}
+- Project sizes: S=1-2 weeks, M=3-4 weeks, L=5+ weeks
+- Total weeks should align with their timeline preference
 
 Return ONLY valid JSON, no explanations or markdown.`;
 
@@ -328,10 +387,10 @@ Return ONLY valid JSON, no explanations or markdown.`;
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: roadmapPrompt }
+            { role: 'system', content: structurePrompt }
           ],
-          max_tokens: 3000,
-          temperature: 0.3,
+          max_tokens: 900,
+          temperature: 0.2,
         }),
       });
 
@@ -343,52 +402,194 @@ Return ONLY valid JSON, no explanations or markdown.`;
       }
 
       let content = data.choices[0].message.content.trim();
-      console.log(`Attempt ${attempt} - Raw AI response:`, content);
-
-      // Handle markdown-wrapped JSON
+      
+      // Clean up markdown wrapping
       if (content.includes('```json')) {
         const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          content = jsonMatch[1];
-        }
+        if (jsonMatch) content = jsonMatch[1];
       } else if (content.includes('```')) {
         const jsonMatch = content.match(/```\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          content = jsonMatch[1];
-        }
+        if (jsonMatch) content = jsonMatch[1];
       }
 
-      // Parse JSON
-      let roadmapData;
-      try {
-        roadmapData = JSON.parse(content.trim());
-      } catch (parseError) {
-        console.error(`Attempt ${attempt} - JSON parse failed:`, parseError);
-        if (attempt === maxRetries) {
-          throw new Error('Failed to get valid JSON after all retries');
-        }
-        continue;
-      }
-
-      // Validate with Zod
-      try {
-        const validatedRoadmap = RoadmapSchema.parse(roadmapData);
-        console.log(`Attempt ${attempt} - Validation successful`);
-        return validatedRoadmap;
-      } catch (validationError) {
-        console.error(`Attempt ${attempt} - Validation failed:`, validationError);
-        if (attempt === maxRetries) {
-          throw new Error('Failed to get valid roadmap schema after all retries');
-        }
-        continue;
-      }
+      const roadmapData = JSON.parse(content.trim());
+      const validatedRoadmap = RoadmapWithIdsSchema.parse(roadmapData);
+      console.log(`Structure generation successful on attempt ${attempt}`);
+      return validatedRoadmap;
+      
     } catch (error) {
-      console.error(`Attempt ${attempt} failed:`, error);
+      console.error(`Structure attempt ${attempt} failed:`, error);
       if (attempt === maxRetries) {
+        // Self-repair attempt
+        try {
+          console.log('Attempting self-repair...');
+          const repairResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openAIApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [
+                { 
+                  role: 'system', 
+                  content: 'Return ONLY JSON that passes this schema. Do not add extra keys or explanations.' 
+                },
+                { 
+                  role: 'user', 
+                  content: JSON.stringify({ 
+                    error: error.message, 
+                    instruction: 'Fix this JSON to match RoadmapWithIdsSchema format' 
+                  }) 
+                }
+              ],
+              max_tokens: 450,
+              temperature: 0.1,
+            }),
+          });
+          
+          const repairData = await repairResponse.json();
+          if (repairData.choices?.[0]?.message?.content) {
+            const repairedJson = JSON.parse(repairData.choices[0].message.content.trim());
+            return RoadmapWithIdsSchema.parse(repairedJson);
+          }
+        } catch (repairError) {
+          console.error('Self-repair failed:', repairError);
+        }
         throw error;
       }
     }
   }
+}
+
+// Stage B: Select resource IDs for each phase
+async function selectResourcesForPhase(
+  phase: any,
+  personaJson: any,
+  candidates: any[],
+  openAIApiKey: string
+): Promise<string[]> {
+  try {
+    console.log(`Selecting resources for phase: ${phase.name} from ${candidates.length} candidates`);
+    
+    const selectionPrompt = `You must return ONLY JSON that selects resource IDs from CANDIDATES.
+For this PHASE, choose 2-4 resource_ids that best match the persona and phase skills.
+Never invent IDs. If uncertain, pick the closest 2.
+Output:
+{ "resource_ids": ["id1","id2", "..."] }`;
+
+    const userPrompt = JSON.stringify({
+      persona: personaJson,
+      phase: phase.name,
+      skills: phase.skills,
+      candidates: candidates,
+      example: { resource_ids: candidates.slice(0, 2).map(c => c.id) }
+    });
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: selectionPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        max_tokens: 450,
+        temperature: 0.2,
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error('Resource selection API error:', data);
+      // Fallback to first 2 candidates
+      return candidates.slice(0, 2).map(c => c.id);
+    }
+
+    const content = data.choices[0].message.content.trim();
+    const selection = JSON.parse(content);
+    const validatedSelection = ResourceSelectionSchema.parse(selection);
+    
+    console.log(`Selected ${validatedSelection.resource_ids.length} resources for ${phase.name}`);
+    return validatedSelection.resource_ids;
+    
+  } catch (error) {
+    console.error(`Resource selection failed for ${phase.name}:`, error);
+    // Fallback to first 2 candidates
+    return candidates.slice(0, 2).map(c => c.id);
+  }
+}
+
+// Main generation function with two-stage approach
+async function generateRoadmapWithCuratedResources(personaJson: any, selectedRole: string, openAIApiKey: string): Promise<any> {
+  const userLevel = personaJson.coding === 'none' ? 'beginner' : 
+                   personaJson.coding === 'basic' ? 'intermediate' : 'advanced';
+  
+  console.log('Starting two-stage roadmap generation...');
+  
+  // Stage A: Generate roadmap structure
+  const roadmapStructure = await generateRoadmapStructure(personaJson, selectedRole, openAIApiKey);
+  console.log('Generated roadmap structure:', roadmapStructure);
+  
+  // Stage B: Select resources for each phase
+  const phases = [];
+  const allSelectedIds = [];
+  
+  for (const phase of roadmapStructure.phases) {
+    const candidates = await getCandidatesByPhase(phase.name, userLevel, 6);
+    const selectedIds = await selectResourcesForPhase(phase, personaJson, candidates, openAIApiKey);
+    
+    phases.push({
+      ...phase,
+      resource_ids: selectedIds
+    });
+    
+    allSelectedIds.push(...selectedIds);
+  }
+  
+  const roadmapWithIds = { ...roadmapStructure, phases };
+  
+  // Get all resource objects and fallback resources
+  const [catalogById, curatedFallbackByPhase] = await Promise.all([
+    getResourcesByIds(allSelectedIds),
+    getCuratedFallbackByPhase(userLevel)
+  ]);
+  
+  // Materialize resources with fallback
+  const finalRoadmap = materializeResources(roadmapWithIds, catalogById, curatedFallbackByPhase);
+  
+  // Add missing fields for backward compatibility
+  const completeRoadmap = {
+    ...finalRoadmap,
+    difficulty: userLevel === 'beginner' ? 'Beginner' : userLevel === 'intermediate' ? 'Intermediate' : 'Advanced',
+    timeline: `${finalRoadmap.timeline_weeks.mid} weeks`,
+    hiringOutlook: 'Good',
+    justification: {
+      whyThisPath: `This ${selectedRole} path aligns perfectly with your background and goals.`,
+      strengths: ['Quick learner', 'Technical aptitude', 'Growth mindset'],
+      alternativePaths: ['Data Scientist', 'Software Engineer'],
+      whyNotAlternatives: 'Your specific interests and skills make this path the best fit.'
+    },
+    salary: {
+      entry: '$70,000 - $90,000',
+      mid: '$90,000 - $130,000',
+      senior: '$130,000 - $180,000'
+    },
+    nextSteps: [
+      'Start with the first resource in Phase 1',
+      'Set up a development environment',
+      'Join relevant AI communities and forums'
+    ]
+  };
+  
+  console.log('Two-stage generation completed successfully');
+  return completeRoadmap;
 }
 
 serve(async (req) => {
