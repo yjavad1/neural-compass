@@ -242,20 +242,21 @@ Generate PERSONALIZED content based on their specific background. Return valid J
 function generateDynamicFallback(selectedRole: string, personaJson: any): any {
   console.log(`🚨 Generating dynamic personalized fallback for ${selectedRole}`);
   
-  const codingLevel = personaJson.coding || 'none';
-  
-  // Personalize difficulty based on actual background
-  let difficulty = 'Beginner';
-  const background = personaJson.background?.[0]?.toLowerCase() || '';
-  if (codingLevel === 'advanced' || background.includes('computer science') || background.includes('engineering')) {
-    difficulty = 'Advanced';
-  } else if (codingLevel === 'some' || codingLevel === 'intermediate') {
-    difficulty = 'Intermediate';
-  }
-  
-  // Use the new personalization utilities
-  const timeline = calculatePersonalizedTimeline(personaJson);
-  const justification = generateJustification(personaJson, selectedRole);
+  try {
+    const codingLevel = personaJson.coding || 'none';
+    
+    // Personalize difficulty based on actual background
+    let difficulty = 'Beginner';
+    const background = personaJson.background?.[0]?.toLowerCase() || '';
+    if (codingLevel === 'advanced' || background.includes('computer science') || background.includes('engineering')) {
+      difficulty = 'Advanced';
+    } else if (codingLevel === 'some' || codingLevel === 'intermediate') {
+      difficulty = 'Intermediate';
+    }
+    
+    // Use the new personalization utilities
+    const timeline = calculatePersonalizedTimeline(personaJson);
+    const justification = generateJustification(personaJson, selectedRole);
   
   return {
     role: selectedRole,
@@ -271,7 +272,7 @@ function generateDynamicFallback(selectedRole: string, personaJson: any): any {
     phases: [
       {
         name: 'Foundations & Core',
-        duration: `${Math.ceil(adjustedTimeline * 0.3)} weeks`,
+        duration: `${Math.ceil(parseInt(timeline.split('-')[0]) * 0.3)} weeks`,
         objective: codingLevel === 'none' ? 'Build programming fundamentals and AI basics' : 'Strengthen AI foundations building on existing skills',
         skills: codingLevel === 'none' ? 
           ['Python Programming', 'AI Fundamentals', 'Data Analysis', 'Basic ML'] :
@@ -300,8 +301,8 @@ function generateDynamicFallback(selectedRole: string, personaJson: any): any {
       },
       {
         name: 'Specialization Deep-Dive',
-        duration: `${Math.ceil(adjustedTimeline * 0.35)} weeks`,
-        objective: `Develop specialized ${selectedRole} skills aligned with your ${interests} interests`,
+        duration: `${Math.ceil(parseInt(timeline.split('-')[0]) * 0.35)} weeks`,
+        objective: `Develop specialized ${selectedRole} skills aligned with your interests`,
         skills: ['Deep Learning', 'Neural Networks', interests.includes('NLP') ? 'Natural Language Processing' : 'Computer Vision', 'Model Training'],
         projects: [
           {
@@ -325,7 +326,7 @@ function generateDynamicFallback(selectedRole: string, personaJson: any): any {
       },
       {
         name: 'Practical Application',
-        duration: `${Math.ceil(adjustedTimeline * 0.25)} weeks`,
+        duration: `${Math.ceil(parseInt(timeline.split('-')[0]) * 0.25)} weeks`,
         objective: 'Build portfolio demonstrating real-world AI applications',
         skills: ['Model Deployment', 'API Development', 'Cloud Platforms', 'Portfolio Building'],
         projects: [
@@ -350,7 +351,7 @@ function generateDynamicFallback(selectedRole: string, personaJson: any): any {
       },
       {
         name: 'Advanced & Research',
-        duration: `${Math.ceil(adjustedTimeline * 0.1)} weeks`,
+        duration: `${Math.ceil(parseInt(timeline.split('-')[0]) * 0.1)} weeks`,
         objective: 'Stay current with cutting-edge developments in AI',
         skills: ['Research Methods', 'Latest AI Trends', 'Continuous Learning', 'Professional Networking'],
         projects: [
@@ -376,11 +377,15 @@ function generateDynamicFallback(selectedRole: string, personaJson: any): any {
     ],
     nextSteps: [
       codingLevel === 'none' ? 'Start with Python programming basics immediately' : 'Review and strengthen your existing Python skills',
-      `Set up your development environment for ${interests} applications`,
+      `Set up your development environment for AI applications`,
       `Join ${selectedRole} communities and start networking`,
-      `Begin your first ${interests}-focused project this week`
+      `Begin your first project this week`
     ]
   };
+  } catch (error) {
+    console.error('Error in generateDynamicFallback:', error);
+    return generateFallbackRoadmap(selectedRole, personaJson);
+  }
 }
 
 // Legacy fallback - kept for compatibility

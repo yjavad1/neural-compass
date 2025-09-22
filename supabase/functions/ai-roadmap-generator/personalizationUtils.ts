@@ -14,7 +14,7 @@ interface PersonaData {
 
 // Convert raw background input to proper descriptive text
 export function processBackground(background: string[]): string {
-  if (!background || background.length === 0) return 'your professional background';
+  if (!background || background.length === 0) return 'your professional experience';
   
   const cleanedBackground = background[0]
     .toLowerCase()
@@ -27,7 +27,7 @@ export function processBackground(background: string[]): string {
   const needsArticle = /^[aeiou]/.test(cleanedBackground);
   const article = needsArticle ? 'an' : 'a';
   
-  return `your background as ${article} ${cleanedBackground}`;
+  return `being ${article} ${cleanedBackground}`;
 }
 
 // Convert interests to natural language
@@ -125,16 +125,16 @@ export function generatePersonalizedStrengths(persona: PersonaData): string[] {
 
 // Generate contextual justification
 export function generateJustification(persona: PersonaData, role: string): any {
-  const background = processBackground(persona.background || []);
+  const backgroundDesc = persona.background?.[0] || '';
   const interests = processInterests(persona.interests || []);
-  const connection = generateRoleConnection(role, persona.background?.[0] || '', persona.interests || []);
+  const connection = generateRoleConnection(role, backgroundDesc, persona.interests || []);
   const strengths = generatePersonalizedStrengths(persona);
   
   return {
     whyThisPath: `${connection}. Your interest in ${interests} further strengthens this career direction, creating a powerful combination of domain knowledge and emerging technology skills.`,
     strengths: strengths,
     alternativePaths: getAlternativePaths(role),
-    whyNotAlternatives: `While these alternatives are valuable, your specific combination of ${background} and interest in ${interests} makes ${role} the most direct path to leveraging your existing expertise while building cutting-edge AI skills.`
+    whyNotAlternatives: `While these alternatives are valuable, your specific combination of experience and interests makes ${role} the most direct path to leveraging your existing expertise while building cutting-edge AI skills.`
   };
 }
 
