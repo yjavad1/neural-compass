@@ -132,10 +132,7 @@ serve(async (req) => {
     }
 
     // Set session token for RLS context
-    await supabase.rpc('set_config', {
-      setting_name: 'app.session_token',
-      setting_value: sessionToken
-    });
+    await supabase.sql`SET app.session_token = ${sessionToken}`;
 
     // Detect user level and phase
     const userLevel = detectUserLevel(conversationHistory || []);
@@ -161,10 +158,8 @@ serve(async (req) => {
         .from('conversation_suggestions')
         .insert({
           session_id: sessionId,
-          ai_question: aiQuestion,
-          suggestions: suggestions,
-          user_level: userLevel,
-          conversation_phase: phase
+          message_context: aiQuestion,
+          suggestions: suggestions
         });
     } catch (error) {
       console.warn('Failed to cache suggestions (non-critical):', error);

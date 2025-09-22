@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionToken } from '@/hooks/useSessionToken';
+import { setSessionToken } from '@/utils/sessionSecurity';
 import { Send, Bot, User, Sparkles, Lightbulb } from 'lucide-react';
 
 interface Message {
@@ -56,6 +57,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
 
       setSessionId(data.sessionId);
       storeSessionToken(data.sessionToken);
+      await setSessionToken(data.sessionToken);
       setMessages([{
         id: '1',
         role: 'assistant',

@@ -143,10 +143,7 @@ serve(async (req) => {
       if (sessionError) throw sessionError;
 
       // Set session token for RLS context
-      await supabase.rpc('set_config', {
-        setting_name: 'app.session_token',
-        setting_value: session.session_token
-      });
+      await supabase.sql`SET app.session_token = ${session.session_token}`;
 
       // Send initial AI message with personalization request
       await supabase
@@ -177,10 +174,7 @@ serve(async (req) => {
       }
 
       // Set session token for RLS context
-      await supabase.rpc('set_config', {
-        setting_name: 'app.session_token',
-        setting_value: sessionToken
-      });
+      await supabase.sql`SET app.session_token = ${sessionToken}`;
 
       // Get current session and conversation history (RLS will enforce access control)
       const { data: session } = await supabase

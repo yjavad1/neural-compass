@@ -56,7 +56,7 @@ export type Database = {
           phase: string | null
           roadmap_generated: boolean | null
           session_data: Json | null
-          session_token: string | null
+          session_token: string
           updated_at: string | null
           user_profile_id: string | null
         }
@@ -66,7 +66,7 @@ export type Database = {
           phase?: string | null
           roadmap_generated?: boolean | null
           session_data?: Json | null
-          session_token?: string | null
+          session_token?: string
           updated_at?: string | null
           user_profile_id?: string | null
         }
@@ -76,7 +76,7 @@ export type Database = {
           phase?: string | null
           roadmap_generated?: boolean | null
           session_data?: Json | null
-          session_token?: string | null
+          session_token?: string
           updated_at?: string | null
           user_profile_id?: string | null
         }
