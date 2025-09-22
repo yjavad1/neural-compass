@@ -633,7 +633,7 @@ async function selectResourcesForPhase(
     skills: phase.skills,
     candidates: candidates,
     example: { resource_ids: candidates.slice(0, 2).map((c: any) => c.id) }
-}
+  }, openAIApiKey);
 
 // Main generation function with enhanced two-stage approach
 async function generateRoadmapWithCuratedResources(personaJson: any, selectedRole: string, openAIApiKey: string): Promise<any> {
