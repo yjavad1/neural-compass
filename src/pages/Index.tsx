@@ -5,7 +5,7 @@ import { RoleSelectionSection } from "@/components/RoleSelectionSection";
 import { InteractiveRoadmap } from "@/components/InteractiveRoadmap";
 import { EnhancedRoadmapSection } from "@/components/EnhancedRoadmapSection";
 import { LoadingTransition } from "@/components/LoadingTransition";
-import { ResourceCatalogTest } from "@/components/ResourceCatalogTest";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeRoadmapData } from "@/utils/roadmapDataSanitizer";

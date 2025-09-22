@@ -248,10 +248,28 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
 
             if (profile) {
               console.log('Profile found, generating roadmap:', profile.id);
+              
+              // Convert profile to personaJson format
+              const personaJson = {
+                name: profile.name || "User",
+                background: profile.technical_background ? [profile.technical_background] : ["General"],
+                coding: profile.experience_level === "expert" ? "advanced" : 
+                       profile.experience_level === "intermediate" ? "some" : "none",
+                math: "medium", // Default since not captured in profile
+                goal: profile.career_goals || "learning",
+                interests: profile.ai_interests || ["AI"],
+                hours_per_week: profile.available_time_per_week || 5,
+                constraints: [],
+                timeline_months: 6 // Default timeline
+              };
+              
+              // Use a default role based on profile or fallback
+              const selectedRole = profile.role_current || "AI Engineer";
+              
               const { data: roadmapData, error: roadmapError } = await supabase.functions.invoke('ai-roadmap-generator', {
                 body: {
-                  sessionId,
-                  profileData: profile
+                  personaJson,
+                  selectedRole
                 }
               });
               
