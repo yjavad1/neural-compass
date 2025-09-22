@@ -56,6 +56,7 @@ export type Database = {
           phase: string | null
           roadmap_generated: boolean | null
           session_data: Json | null
+          session_token: string | null
           updated_at: string | null
           user_profile_id: string | null
         }
@@ -65,6 +66,7 @@ export type Database = {
           phase?: string | null
           roadmap_generated?: boolean | null
           session_data?: Json | null
+          session_token?: string | null
           updated_at?: string | null
           user_profile_id?: string | null
         }
@@ -74,6 +76,7 @@ export type Database = {
           phase?: string | null
           roadmap_generated?: boolean | null
           session_data?: Json | null
+          session_token?: string | null
           updated_at?: string | null
           user_profile_id?: string | null
         }
@@ -435,7 +438,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_old_conversations: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
