@@ -73,21 +73,22 @@ CRITICAL REQUIREMENTS:
 - Each resource MUST have working URLs to SPECIFIC courses/content
 - Include 2-4 resources per phase from real educational platforms
 
-RESOURCE URL GUIDELINES:
-🚫 NEVER USE: trending pages, search pages, browse pages, or generic landing pages
-✅ USE ONLY: Direct links to specific courses, tutorials, or learning materials
+RESOURCE SELECTION APPROACH:
+🎯 FOCUS: Describe the learning resource you want, not the URL
+✅ SPECIFY: Course title, preferred platform (Coursera/edX/Udemy/Khan Academy), duration, difficulty
+🤖 SYSTEM: Will automatically match to verified course URLs from our curated database
 
-EXAMPLES OF GOOD URLs:
-- https://www.coursera.org/learn/machine-learning-course
-- https://www.udemy.com/course/python-for-data-science-and-machine-learning-bootcamp/
-- https://ocw.mit.edu/courses/6-034-artificial-intelligence-fall-2010/
-- https://www.kaggle.com/learn/intro-to-machine-learning
+PREFERRED PLATFORMS (in order):
+1. Coursera - Professional certificates and university courses
+2. edX - MIT, Harvard, and other top university content  
+3. Udemy - Practical, hands-on bootcamp-style courses
+4. Khan Academy - Interactive, beginner-friendly tutorials
 
-EXAMPLES OF BAD URLs (DO NOT USE):
-- https://huggingface.co/papers/trending
-- https://coursera.org/browse/data-science
-- https://github.com/trending
-- Any URL with /search, /trending, /browse, /explore
+RESOURCE DESCRIPTION FORMAT:
+Instead of URLs, describe what you want:
+- "Machine Learning course from Coursera, 8-10 weeks, beginner-friendly"
+- "Python programming tutorial from Khan Academy, interactive, self-paced"
+- "Data Science bootcamp from Udemy, practical projects, 20+ hours"
 
 Generate PERSONALIZED content based on their specific background. Return valid JSON only:
 

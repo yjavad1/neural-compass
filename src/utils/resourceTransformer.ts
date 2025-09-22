@@ -1,3 +1,5 @@
+import { RESOURCE_TEMPLATES, PLATFORM_FALLBACKS, getCuratedResources, ResourceTemplate } from './resourceTemplates';
+
 // Transform LLM resource data to UI format
 interface LLMResource {
   title: string;
@@ -171,10 +173,37 @@ export const transformResources = (llmResources: Partial<LLMResource>[]): UIReso
   return llmResources.map(transformResource);
 };
 
-// Transform entire phase resources
-export const transformPhaseResources = (phases: any[]): any[] => {
-  return phases.map(phase => ({
-    ...phase,
-    resources: transformResources(phase.resources || [])
+// Generate curated resources for a phase based on skills
+export const generateCuratedPhaseResources = (skills: string[]): UIResource[] => {
+  const curatedResources = getCuratedResources(skills, 3);
+  return curatedResources.map(template => ({
+    title: template.title,
+    type: template.type,
+    provider: template.provider,
+    duration: template.estimatedTime,
+    difficulty: template.difficulty,
+    cost: template.cost,
+    rating: generateRating(template.provider, template.type),
+    url: template.url,
+    description: template.whyRecommended
   }));
+};
+
+// Transform entire phase resources with curated approach
+export const transformPhaseResources = (phases: any[]): any[] => {
+  return phases.map(phase => {
+    // Use curated resources based on phase skills
+    const curatedResources = generateCuratedPhaseResources(phase.skills || []);
+    
+    // If we have existing resources, transform them as backup
+    const transformedResources = transformResources(phase.resources || []);
+    
+    // Prefer curated resources, fallback to transformed if needed
+    const finalResources = curatedResources.length > 0 ? curatedResources : transformedResources;
+    
+    return {
+      ...phase,
+      resources: finalResources
+    };
+  });
 };
