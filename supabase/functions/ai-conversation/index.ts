@@ -133,7 +133,7 @@ serve(async (req) => {
     const { message, sessionId, action } = await req.json();
     
     if (action === 'start') {
-      // Create new conversation session
+      // Create new conversation session with security token
       const { data: session, error: sessionError } = await supabase
         .from('conversation_sessions')
         .insert({ phase: 'discovery' })
@@ -141,6 +141,12 @@ serve(async (req) => {
         .single();
 
       if (sessionError) throw sessionError;
+
+      // Set session token for RLS context
+      await supabase.rpc('set_config', {
+        setting_name: 'app.session_token',
+        setting_value: session.session_token
+      });
 
       // Send initial AI message with personalization request
       await supabase
@@ -150,7 +156,8 @@ serve(async (req) => {
         ]);
 
       return new Response(JSON.stringify({ 
-        sessionId: session.id, 
+        sessionId: session.id,
+        sessionToken: session.session_token,
         message: initialMessage,
         phase: 'discovery'
       }), {
@@ -159,7 +166,23 @@ serve(async (req) => {
     }
 
     if (action === 'send' && message && sessionId) {
-      // Get current session and conversation history
+      const { sessionToken } = await req.json();
+      
+      // Validate session token for security
+      if (!sessionToken) {
+        return new Response(JSON.stringify({ error: 'Session token required' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Set session token for RLS context
+      await supabase.rpc('set_config', {
+        setting_name: 'app.session_token',
+        setting_value: sessionToken
+      });
+
+      // Get current session and conversation history (RLS will enforce access control)
       const { data: session } = await supabase
         .from('conversation_sessions')
         .select('*')

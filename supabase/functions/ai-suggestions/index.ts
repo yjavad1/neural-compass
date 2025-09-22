@@ -114,7 +114,7 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, aiQuestion, conversationHistory } = await req.json();
+    const { sessionId, aiQuestion, conversationHistory, sessionToken } = await req.json();
     
     if (!sessionId || !aiQuestion) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -122,6 +122,20 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Validate session token for security
+    if (!sessionToken) {
+      return new Response(JSON.stringify({ error: 'Session token required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Set session token for RLS context
+    await supabase.rpc('set_config', {
+      setting_name: 'app.session_token',
+      setting_value: sessionToken
+    });
 
     // Detect user level and phase
     const userLevel = detectUserLevel(conversationHistory || []);

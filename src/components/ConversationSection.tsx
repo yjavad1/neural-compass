@@ -5,6 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useSessionToken } from '@/hooks/useSessionToken';
 import { Send, Bot, User, Sparkles, Lightbulb } from 'lucide-react';
 
 interface Message {
@@ -29,6 +30,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const { sessionToken, storeSessionToken, clearSessionToken } = useSessionToken();
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -53,6 +55,7 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
       if (error) throw error;
 
       setSessionId(data.sessionId);
+      storeSessionToken(data.sessionToken);
       setMessages([{
         id: '1',
         role: 'assistant',
@@ -107,7 +110,8 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
         body: {
           sessionId,
           aiQuestion: aiMessage,
-          conversationHistory: messages.map(m => ({ role: m.role, content: m.content }))
+          conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
+          sessionToken
         }
       });
 
@@ -163,7 +167,8 @@ const ConversationSection: React.FC<ConversationSectionProps> = ({ onComplete })
           body: {
             action: 'send',
             message: userMessage.content,
-            sessionId
+            sessionId,
+            sessionToken
           }
         });
         return await Promise.race([apiPromise, timeoutPromise]) as any;
