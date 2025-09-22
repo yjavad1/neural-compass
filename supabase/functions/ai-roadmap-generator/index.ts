@@ -54,238 +54,314 @@ const RoadmapSchema = z.object({
   nextSteps: z.array(z.string()),
 });
 
-// Generate complete roadmap with LLM
+// Generate complete roadmap with LLM (with retry logic)
 async function generateCompleteRoadmap(personaJson: any, selectedRole: string, openAIApiKey: string): Promise<any> {
-  console.log(`🚀 Generating complete roadmap for ${selectedRole} using LLM-first approach`);
+  console.log(`🚀 Generating complete roadmap for ${selectedRole} using optimized LLM approach`);
   
-  const detailedPrompt = `You are an expert AI career advisor creating a personalized learning roadmap.
+  // Streamlined, more focused prompt
+  const optimizedPrompt = `Create a personalized ${selectedRole} learning roadmap for this specific user:
 
-USER PERSONA:
-${JSON.stringify(personaJson, null, 2)}
+BACKGROUND: ${personaJson.background?.join(', ') || 'General'}
+CODING: ${personaJson.coding || 'none'} 
+GOALS: ${personaJson.goal || 'career change'}
+INTERESTS: ${personaJson.interests?.join(', ') || 'AI/ML'}
+TIME: ${personaJson.hours_per_week || 10}hrs/week, ${personaJson.timeline_months || 6} months
+CONSTRAINTS: ${personaJson.constraints?.join(', ') || 'None'}
 
-SELECTED CAREER PATH: ${selectedRole}
-
-Create a comprehensive, personalized roadmap that addresses this specific person's background, goals, and constraints.
-
-ANALYZE THE PERSONA:
-- Background: ${personaJson.background?.join(', ') || 'Not specified'}
-- Coding Experience: ${personaJson.coding || 'none'}
-- Math Background: ${personaJson.math || 'low'}
-- Primary Goal: ${personaJson.goal || 'skills'}
-- Interests: ${personaJson.interests?.join(', ') || 'Not specified'}
-- Available Hours/Week: ${personaJson.hours_per_week || 10}
-- Timeline Preference: ${personaJson.timeline_months || 6} months
-- Constraints: ${personaJson.constraints?.join(', ') || 'None'}
-
-Return this EXACT JSON format (no markdown, no backticks):
+Generate PERSONALIZED content based on their specific background. Return valid JSON only:
 
 {
   "role": "${selectedRole}",
-  "difficulty": "[Beginner/Intermediate/Advanced based on their background]",
-  "timeline": "[X-Y months based on their timeline preference and hours]",
-  "hiringOutlook": "[Current market outlook for this role]",
+  "difficulty": "PERSONALIZED_DIFFICULTY",
+  "timeline": "BASED_ON_THEIR_HOURS_AND_TIMELINE",
+  "hiringOutlook": "CURRENT_MARKET_OUTLOOK",
   "justification": {
-    "whyThisPath": "[Personalized explanation based on their background and goals]",
-    "strengths": ["[strength1 from their background]", "[strength2]", "[strength3]"],
-    "alternativePaths": ["[alternative career 1]", "[alternative career 2]"],
-    "whyNotAlternatives": "[Why this path is better for them specifically]"
+    "whyThisPath": "SPECIFIC_TO_THEIR_BACKGROUND_AND_GOALS",
+    "strengths": ["STRENGTH_FROM_BACKGROUND", "ANOTHER_STRENGTH", "THIRD_STRENGTH"],
+    "alternativePaths": ["ALTERNATIVE_1", "ALTERNATIVE_2"],
+    "whyNotAlternatives": "WHY_THIS_PATH_BETTER_FOR_THEM"
   },
   "salary": {
-    "entry": "$XX,000 - $XX,000",
-    "mid": "$XX,000 - $XX,000", 
-    "senior": "$XX,000 - $XX,000"
+    "entry": "$X,000 - $Y,000",
+    "mid": "$X,000 - $Y,000", 
+    "senior": "$X,000 - $Y,000"
   },
   "phases": [
     {
       "name": "Foundations & Core",
-      "duration": "[X weeks]",
-      "objective": "[Specific objective for this person]",
-      "skills": ["[skill1]", "[skill2]", "[skill3]", "[skill4]"],
-      "projects": [
-        {
-          "title": "[Project name relevant to their interests]",
-          "size": "S",
-          "brief": "[What they'll build and why it's useful]"
-        }
-      ],
+      "duration": "X weeks",
+      "objective": "SPECIFIC_TO_THEIR_LEVEL",
+      "skills": ["SKILL_1", "SKILL_2", "SKILL_3", "SKILL_4"],
+      "projects": [{"title": "PROJECT_FOR_THEIR_INTERESTS", "size": "S", "brief": "WHAT_THEYLL_BUILD"}],
       "resources": [
-        {
-          "title": "[Actual course/resource name]",
-          "type": "Course",
-          "provider": "[Real provider like Coursera, Udemy, etc.]",
-          "url": "https://example.com",
-          "estimatedTime": "[X hours]",
-          "cost": "Free/Paid",
-          "difficulty": "Beginner",
-          "whyRecommended": "[Personalized reason based on their background]"
-        },
-        {
-          "title": "[Another resource]",
-          "type": "Tutorial",
-          "provider": "[Provider]",
-          "url": "https://example.com",
-          "estimatedTime": "[X hours]",
-          "cost": "Free",
-          "difficulty": "Beginner",
-          "whyRecommended": "[Why this fits their learning style/constraints]"
-        }
+        {"title": "REAL_COURSE_NAME", "type": "Course", "provider": "REAL_PROVIDER", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Free/Paid", "difficulty": "Beginner", "whyRecommended": "PERSONALIZED_REASON"},
+        {"title": "ANOTHER_RESOURCE", "type": "Tutorial", "provider": "PROVIDER", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Free", "difficulty": "Beginner", "whyRecommended": "WHY_FOR_THEM"}
       ]
     },
     {
       "name": "Specialization Deep-Dive",
-      "duration": "[X weeks]",
-      "objective": "[Specific objective]",
-      "skills": ["[skill1]", "[skill2]", "[skill3]"],
-      "projects": [
-        {
-          "title": "[Project related to their interests]",
-          "size": "M",
-          "brief": "[Description]"
-        }
-      ],
-      "resources": [
-        {
-          "title": "[Relevant advanced course]",
-          "type": "Course",
-          "provider": "[Provider]",
-          "url": "https://example.com",
-          "estimatedTime": "[X hours]",
-          "cost": "Paid",
-          "difficulty": "Intermediate",
-          "whyRecommended": "[Personalized reasoning]"
-        }
-      ]
+      "duration": "X weeks",
+      "objective": "INTERMEDIATE_GOAL",
+      "skills": ["ADV_SKILL_1", "ADV_SKILL_2", "ADV_SKILL_3"],
+      "projects": [{"title": "INTERMEDIATE_PROJECT", "size": "M", "brief": "DESCRIPTION"}],
+      "resources": [{"title": "ADVANCED_COURSE", "type": "Course", "provider": "PROVIDER", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Paid", "difficulty": "Intermediate", "whyRecommended": "REASONING"}]
     },
     {
       "name": "Practical Application",
-      "duration": "[X weeks]",
-      "objective": "[Portfolio building objective]",
-      "skills": ["[skill1]", "[skill2]", "[skill3]"],
-      "projects": [
-        {
-          "title": "[Substantial project for portfolio]",
-          "size": "L",
-          "brief": "[What they'll build for their portfolio]"
-        }
-      ],
-      "resources": [
-        {
-          "title": "[Practical resource/tutorial]",
-          "type": "Tutorial",
-          "provider": "[Provider]",
-          "url": "https://example.com",
-          "estimatedTime": "[X hours]",
-          "cost": "Free",
-          "difficulty": "Intermediate",
-          "whyRecommended": "[Why this helps with practical skills]"
-        }
-      ]
+      "duration": "X weeks",
+      "objective": "PORTFOLIO_BUILDING",
+      "skills": ["PRACTICAL_1", "PRACTICAL_2", "PRACTICAL_3"],
+      "projects": [{"title": "PORTFOLIO_PROJECT", "size": "L", "brief": "SUBSTANTIAL_PROJECT"}],
+      "resources": [{"title": "PRACTICAL_RESOURCE", "type": "Tutorial", "provider": "PROVIDER", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Free", "difficulty": "Intermediate", "whyRecommended": "PRACTICAL_SKILLS"}]
     },
     {
       "name": "Advanced & Research",
-      "duration": "[X weeks]",
-      "objective": "[Advanced learning objective]",
-      "skills": ["[skill1]", "[skill2]", "[skill3]"],
-      "projects": [
-        {
-          "title": "[Advanced capstone project]",
-          "size": "L",
-          "brief": "[Complex project description]"
-        }
-      ],
-      "resources": [
-        {
-          "title": "[Advanced resource/paper]",
-          "type": "Research",
-          "provider": "[Provider/Journal]",
-          "url": "https://example.com",
-          "estimatedTime": "[X hours]",
-          "cost": "Free",
-          "difficulty": "Advanced",
-          "whyRecommended": "[Why this advances their expertise]"
-        }
-      ]
+      "duration": "X weeks",
+      "objective": "ADVANCED_EXPERTISE",
+      "skills": ["EXPERT_1", "EXPERT_2", "EXPERT_3"],
+      "projects": [{"title": "CAPSTONE_PROJECT", "size": "L", "brief": "COMPLEX_PROJECT"}],
+      "resources": [{"title": "RESEARCH_RESOURCE", "type": "Research", "provider": "JOURNAL", "url": "https://example.com", "estimatedTime": "X hours", "cost": "Free", "difficulty": "Advanced", "whyRecommended": "EXPERTISE_BUILDING"}]
     }
   ],
-  "nextSteps": [
-    "[Immediate action item 1]",
-    "[Action item 2]",
-    "[Action item 3]"
-  ]
-}
+  "nextSteps": ["ACTION_1", "ACTION_2", "ACTION_3"]
+}`;
 
-CRITICAL REQUIREMENTS:
-1. Make it HIGHLY PERSONALIZED based on their specific background and constraints
-2. Use REAL learning resources (courses, books, tutorials) that actually exist
-3. Consider their budget constraints if mentioned
-4. Adjust difficulty based on their coding/math background
-5. Make project suggestions relevant to their stated interests
-6. Provide specific, actionable next steps
-7. Give realistic timeline estimates based on their available hours`;
+  // Retry logic with different models
+  const models = ["gpt-4o", "gpt-4o-mini"];
+  
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      console.log(`⏰ Starting LLM generation attempt ${attempt + 1}...`);
+      const startTime = Date.now();
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // Increased to 35 seconds
+      
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: models[attempt], // Try different models
+          max_tokens: 2500, // Increased for complete responses
+          temperature: 0.2, // Lower for more consistent output
+          messages: [
+            { role: "system", content: "You are an expert AI career advisor. Return only valid JSON with personalized content based on the user's specific background and constraints." },
+            { role: "user", content: optimizedPrompt }
+          ],
+        }),
+      });
+      
+      clearTimeout(timeoutId);
+      
+      const duration = Date.now() - startTime;
+      console.log(`⏱️ LLM call completed in ${duration}ms with ${models[attempt]}`);
 
-  try {
-    console.log("⏰ Starting LLM generation...");
-    const startTime = Date.now();
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
-    
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: "gpt-4o-mini", // Use faster model
-        max_tokens: 1600, // Further reduced for speed
-        temperature: 0.3,
-        messages: [
-          { role: "system", content: "You are a concise AI career advisor. Generate only the requested JSON structure with no extra text." },
-          { role: "user", content: detailedPrompt + "\n\nIMPORTANT: Be concise but comprehensive. Focus on quality over quantity in descriptions." }
-        ],
-      }),
-    });
-    
-    clearTimeout(timeoutId);
-    
-    const duration = Date.now() - startTime;
-    console.log(`⏱️ LLM call completed in ${duration}ms`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
+      }
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content;
+      
+      if (!content) {
+        throw new Error('No content received from OpenAI');
+      }
+
+      console.log(`📝 Generated roadmap content (${content.length} chars)`);
+      
+      // Clean and parse JSON
+      let cleanContent = content.trim();
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/```json\n?/, '').replace(/\n?```$/, '');
+      }
+      if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/```\n?/, '').replace(/\n?```$/, '');
+      }
+      
+      const roadmap = JSON.parse(cleanContent);
+      
+      // Validate structure
+      const validatedRoadmap = RoadmapSchema.parse(roadmap);
+      
+      console.log(`✅ Successfully generated and validated personalized roadmap for ${selectedRole}`);
+      
+      return validatedRoadmap;
+      
+    } catch (error) {
+      console.error(`❌ Attempt ${attempt + 1} failed:`, error);
+      
+      if (attempt === 1) { // Last attempt
+        console.error(`❌ All attempts failed. Falling back to dynamic fallback`);
+        return generateDynamicFallback(selectedRole, personaJson);
+      }
     }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-    
-    if (!content) {
-      throw new Error('No content received from OpenAI');
-    }
-
-    console.log(`📝 Generated roadmap content (${content.length} chars)`);
-    
-    // Parse and validate the JSON response
-    const roadmap = JSON.parse(content);
-    
-    // Basic validation
-    const validatedRoadmap = RoadmapSchema.parse(roadmap);
-    
-    console.log(`✅ Successfully generated and validated complete roadmap for ${selectedRole}`);
-    
-    return validatedRoadmap;
-    
-  } catch (error) {
-    console.error(`❌ Failed to generate complete roadmap:`, error);
-    
-    // Simple fallback roadmap
-    return generateFallbackRoadmap(selectedRole, personaJson);
   }
 }
 
-// Simple fallback roadmap generator
+// Enhanced fallback that's more personalized
+function generateDynamicFallback(selectedRole: string, personaJson: any): any {
+  console.log(`🚨 Generating dynamic personalized fallback for ${selectedRole}`);
+  
+  const baseTimeline = personaJson.timeline_months || 6;
+  const hours = personaJson.hours_per_week || 10;
+  const codingLevel = personaJson.coding || 'none';
+  const background = personaJson.background?.[0] || 'General';
+  const interests = personaJson.interests?.[0] || 'AI';
+  
+  // Personalize difficulty based on actual background
+  let difficulty = 'Beginner';
+  if (codingLevel === 'advanced' || background.includes('Computer Science') || background.includes('Engineering')) {
+    difficulty = 'Advanced';
+  } else if (codingLevel === 'some' || codingLevel === 'intermediate') {
+    difficulty = 'Intermediate';
+  }
+  
+  // Personalize timeline based on hours
+  const adjustedTimeline = hours >= 20 ? Math.max(3, baseTimeline - 2) : 
+                          hours >= 10 ? baseTimeline : 
+                          baseTimeline + 2;
+  
+  return {
+    role: selectedRole,
+    difficulty: difficulty,
+    timeline: `${adjustedTimeline}-${adjustedTimeline + 2} months`,
+    hiringOutlook: 'Strong demand in AI field with growing opportunities',
+    justification: {
+      whyThisPath: `Based on your ${background} background and ${codingLevel} coding experience, this ${selectedRole} path leverages your existing skills while building the specialized AI expertise you're seeking. Your interest in ${interests} aligns perfectly with this career direction.`,
+      strengths: [
+        codingLevel !== 'none' ? 'Existing programming foundation' : 'Strong learning motivation',
+        `${background} background provides relevant context`,
+        `Clear commitment with ${hours} hours per week available`
+      ],
+      alternativePaths: ['Data Scientist', 'Machine Learning Engineer', 'AI Research Scientist'],
+      whyNotAlternatives: `Your specific combination of ${background} background and ${interests} interests makes ${selectedRole} the most direct path to your goals.`
+    },
+    salary: {
+      entry: '$75,000 - $95,000',
+      mid: '$95,000 - $130,000',
+      senior: '$130,000 - $180,000'
+    },
+    phases: [
+      {
+        name: 'Foundations & Core',
+        duration: `${Math.ceil(adjustedTimeline * 0.3)} weeks`,
+        objective: codingLevel === 'none' ? 'Build programming fundamentals and AI basics' : 'Strengthen AI foundations building on existing skills',
+        skills: codingLevel === 'none' ? 
+          ['Python Programming', 'AI Fundamentals', 'Data Analysis', 'Basic ML'] :
+          ['Advanced Python', 'AI Theory', 'Machine Learning', 'Data Science'],
+        projects: [
+          {
+            title: interests.includes('NLP') ? 'Text Analysis Tool' : 
+                   interests.includes('Computer Vision') ? 'Image Recognition App' : 
+                   'AI-Powered Recommendation System',
+            size: 'S',
+            brief: `Build a ${interests.toLowerCase()}-focused project that demonstrates core AI concepts`
+          }
+        ],
+        resources: [
+          {
+            title: codingLevel === 'none' ? 'Python for Everybody' : 'Advanced Python for Data Science',
+            type: 'Course',
+            provider: 'Coursera',
+            url: 'https://coursera.org/specializations/python',
+            estimatedTime: codingLevel === 'none' ? '50 hours' : '30 hours',
+            cost: 'Free',
+            difficulty: difficulty,
+            whyRecommended: `Tailored to your ${codingLevel} coding level and ${background} background`
+          }
+        ]
+      },
+      {
+        name: 'Specialization Deep-Dive',
+        duration: `${Math.ceil(adjustedTimeline * 0.35)} weeks`,
+        objective: `Develop specialized ${selectedRole} skills aligned with your ${interests} interests`,
+        skills: ['Deep Learning', 'Neural Networks', interests.includes('NLP') ? 'Natural Language Processing' : 'Computer Vision', 'Model Training'],
+        projects: [
+          {
+            title: `${interests} Specialization Project`,
+            size: 'M',
+            brief: `Create an advanced application in your area of interest: ${interests}`
+          }
+        ],
+        resources: [
+          {
+            title: 'Deep Learning Specialization',
+            type: 'Course',
+            provider: 'Coursera',
+            url: 'https://coursera.org/specializations/deep-learning',
+            estimatedTime: '80 hours',
+            cost: 'Paid',
+            difficulty: 'Intermediate',
+            whyRecommended: `Perfect progression from your ${difficulty.toLowerCase()} foundation, focuses on practical applications`
+          }
+        ]
+      },
+      {
+        name: 'Practical Application',
+        duration: `${Math.ceil(adjustedTimeline * 0.25)} weeks`,
+        objective: 'Build portfolio demonstrating real-world AI applications',
+        skills: ['Model Deployment', 'API Development', 'Cloud Platforms', 'Portfolio Building'],
+        projects: [
+          {
+            title: `End-to-End ${selectedRole} Application`,
+            size: 'L',
+            brief: 'Deploy a complete AI solution that showcases your specialized skills for potential employers'
+          }
+        ],
+        resources: [
+          {
+            title: 'MLOps and Model Deployment',
+            type: 'Course',
+            provider: 'AWS/Google Cloud',
+            url: 'https://cloud.google.com/training',
+            estimatedTime: '40 hours',
+            cost: 'Free tier available',
+            difficulty: 'Intermediate',
+            whyRecommended: 'Essential for demonstrating production-ready skills to employers'
+          }
+        ]
+      },
+      {
+        name: 'Advanced & Research',
+        duration: `${Math.ceil(adjustedTimeline * 0.1)} weeks`,
+        objective: 'Stay current with cutting-edge developments in AI',
+        skills: ['Research Methods', 'Latest AI Trends', 'Continuous Learning', 'Professional Networking'],
+        projects: [
+          {
+            title: 'Cutting-Edge Research Implementation',
+            size: 'L',
+            brief: 'Implement and improve upon recent research in your specialization area'
+          }
+        ],
+        resources: [
+          {
+            title: 'Papers With Code',
+            type: 'Platform',
+            provider: 'Papers With Code',
+            url: 'https://paperswithcode.com',
+            estimatedTime: 'Ongoing',
+            cost: 'Free',
+            difficulty: 'Advanced',
+            whyRecommended: 'Keep up with latest research and implementations in your field'
+          }
+        ]
+      }
+    ],
+    nextSteps: [
+      codingLevel === 'none' ? 'Start with Python programming basics immediately' : 'Review and strengthen your existing Python skills',
+      `Set up your development environment for ${interests} applications`,
+      `Join ${selectedRole} communities and start networking`,
+      `Begin your first ${interests}-focused project this week`
+    ]
+  };
+}
+
+// Legacy fallback - kept for compatibility
 function generateFallbackRoadmap(selectedRole: string, personaJson: any): any {
   console.log(`🚨 Generating simple fallback roadmap for ${selectedRole}`);
   
@@ -450,9 +526,9 @@ async function generateRoadmap(personaJson: any, selectedRole: string): Promise<
   } catch (error) {
     console.error(`❌ Roadmap generation failed:`, error);
     
-    // Use simple fallback
-    console.log(`🔄 Using fallback roadmap generation`);
-    return generateFallbackRoadmap(selectedRole, personaJson);
+    // Use dynamic fallback
+    console.log(`🔄 Using enhanced fallback roadmap generation`);
+    return generateDynamicFallback(selectedRole, personaJson);
   }
 }
 
