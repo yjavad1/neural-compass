@@ -126,40 +126,23 @@ What's your first name? I'd love to personalize our conversation and make this j
 
 // Rate limiting function
 async function checkRateLimit(identifier: string, maxRequests: number = 10, windowMinutes: number = 10): Promise<boolean> {
-  const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
-  
-  // Clean old records
-  await supabase
-    .from('rate_limits')
-    .delete()
-    .lt('window_start', windowStart.toISOString());
-  
-  // Check current count
-  const { data: existing } = await supabase
-    .from('rate_limits')
-    .select('request_count')
-    .eq('identifier', identifier)
-    .gte('window_start', windowStart.toISOString())
-    .maybeSingle();
-  
-  if (existing && existing.request_count >= maxRequests) {
-    return false;
+  try {
+    const { data, error } = await supabase.rpc('manage_rate_limit', {
+      p_identifier: identifier,
+      p_max_requests: maxRequests,
+      p_window_minutes: windowMinutes
+    });
+    
+    if (error) {
+      console.warn('Rate limit check failed:', error);
+      return true; // Allow request if rate limit check fails
+    }
+    
+    return data === true;
+  } catch (error) {
+    console.warn('Rate limit error:', error);
+    return true; // Allow request if rate limit check fails
   }
-  
-  // Update or insert rate limit record
-  if (existing) {
-    await supabase
-      .from('rate_limits')
-      .update({ request_count: existing.request_count + 1 })
-      .eq('identifier', identifier)
-      .gte('window_start', windowStart.toISOString());
-  } else {
-    await supabase
-      .from('rate_limits')
-      .insert({ identifier, request_count: 1 });
-  }
-  
-  return true;
 }
 
 serve(async (req) => {

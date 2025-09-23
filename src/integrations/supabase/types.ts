@@ -466,6 +466,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      manage_rate_limit: {
+        Args: {
+          p_identifier: string
+          p_max_requests?: number
+          p_window_minutes?: number
+        }
+        Returns: boolean
+      }
       set_config: {
         Args: { setting_name: string; setting_value: string }
         Returns: undefined
